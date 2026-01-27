@@ -31,6 +31,37 @@ const path = require('path');
 
 
 function query(indexFile, args) {
+  const input = args.join(' ');
+  let processed = '';
+  try {
+    const escaped = input.replace(/(["\\$`])/g, '\\$1');
+    const command = `echo "${escaped}" | ./c/process.sh | ./c/stem.js`;
+    processed = execSync(command, {encoding: 'utf-8', cwd: __dirname});
+  } catch (err) {
+    console.error('Error processing query:', err.message);
+    process.exit(1);
+  }
+
+  const tokens = processed.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) {
+    return;
+  }
+
+  const queryString = tokens.join(' ');
+  let data = '';
+  try {
+    data = fs.readFileSync(path.resolve(__dirname, indexFile), 'utf-8');
+  } catch (err) {
+    console.error('Error reading index file:', err.message);
+    process.exit(1);
+  }
+
+  const lines = data.split('\n');
+  for (const line of lines) {
+    if (line.includes(queryString)) {
+      process.stdout.write(`${line}\n`);
+    }
+  }
 }
 
 const args = process.argv.slice(2); // Get command-line arguments
