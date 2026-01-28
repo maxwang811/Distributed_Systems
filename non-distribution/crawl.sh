@@ -11,9 +11,10 @@ dbg_log() {
   local msg="$1"; shift
   local data_json="${1:-{}}"
   local ts; ts="$(date +%s%3N)"
+  local log_path="${DEBUG_LOG_PATH:-/tmp/cs1380-debug.log}"
   printf '{"sessionId":"debug-session","runId":"%s","hypothesisId":"%s","location":%s,"message":%s,"data":%s,"timestamp":%s}\n' \
     "$runId" "$hyp" "$(dbg_escape_json "$loc")" "$(dbg_escape_json "$msg")" "$data_json" "$ts" \
-    >>"/Users/maxwang/Desktop/Distributed_Systems/.cursor/debug.log" 2>/dev/null || true
+    >>"$log_path" 2>/dev/null || true
 }
 # #endregion
 
@@ -29,10 +30,11 @@ if [[ -f d/visited.txt ]] && grep -Fxq "$url" d/visited.txt; then
   exit 0
 fi
 
-if ! curl -skL --retry 3 --retry-delay 1 --retry-connrefused "$1" >"$tmp_file"; then
+if ! curl -skL --retry 3 --retry-delay 1 --retry-connrefused --connect-timeout 5 --max-time 20 "$1" >"$tmp_file"; then
   # #region agent log
   dbg_log "A" "crawl.sh:curl" "curl failed" "{\"url\":$(dbg_escape_json "$url")}"
   # #endregion
+  echo "$1" >>d/visited.txt
   rm -f "$tmp_file"
   exit 1
 fi

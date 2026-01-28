@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #4CAF50;
+        }
+
+        a {
+            color: #5D4037;
+            text-decoration: none;
+            font-size: 1.2em;
+        }
+
+        a:hover {
+            color: #FF5722;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding: 10px;
+            background-color: #3F51B5;
+            color: white;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Interesting Fact 3</h1>
+        <p> 
+        The use of color in art isn't just about aesthetics; it also has a profound impact on psychology and can significantly affect the mood and emotion conveyed by a piece of artwork. Each color has its own psychological properties and associations that artists have leveraged for centuries.
+
+        For instance, red is often associated with passion, energy, and danger, making it a powerful color for evoking strong emotions. Blue, on the other hand, is frequently linked to calmness and serenity, and is used to create a sense of peace and tranquility. Yellow can evoke feelings of happiness and optimism, but when used in certain contexts, it might also suggest caution or anxiety.
+
+        Artists like Vincent van Gogh and Claude Monet were masters of color psychology, using colors to convey complex emotions and atmospheres in their paintings. Van Gogh's "Starry Night," for instance, uses swirling blues and yellows to create a vibrant, yet somewhat turbulent sky, reflecting his emotional turmoil.
+
+        The study and application of color psychology is an important aspect of art therapy, where colors are used to help individuals express their feelings and work through emotional issues. This fascinating intersection of art and psychology underscores the profound impact that visual elements can have on human emotion and cognition.</p>
+    </div>
+    <div class="footer">
+        <p>© 2023 CS1380. All rights reserved.</p>
+    </div>
+</body>
+</html>

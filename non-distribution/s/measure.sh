@@ -105,10 +105,8 @@ EOF
   exit 0
 fi
 
-# Reset data files
 cp -a "$backup_dir/d/stopwords.txt" "$DATA_DIR/stopwords.txt"
 
-# Only copy corpus if it's not already d/urls.txt
 if [[ "$CORPUS_FILE" != "$DATA_DIR/urls.txt" ]]; then
   cp -a "$CORPUS_FILE" "$DATA_DIR/urls.txt"
 fi
@@ -176,7 +174,7 @@ OUT_JSON="$OUT_DIR/${ENV_NAME}.json"
 
 corpus_basename="$(basename "$CORPUS_FILE")"
 corpus_abs="$(cd "$(dirname "$CORPUS_FILE")" && pwd)/$corpus_basename"
-corpus_lines="$(grep -v '^[[:space:]]*$' "$CORPUS_FILE" 2>/dev/null | wc -l | tr -d ' ')"
+corpus_lines="$(grep -c -v '^[[:space:]]*$' "$CORPUS_FILE" 2>/dev/null | tr -d ' ')"
 corpus_bytes="$(wc -c <"$CORPUS_FILE" | tr -d ' ')"
 corpus_sha256="$(python3 -c 'import hashlib,sys; p=sys.argv[1]; h=hashlib.sha256(); h.update(open(p,"rb").read()); print(h.hexdigest())' "$CORPUS_FILE" 2>/dev/null || echo "")"
 

@@ -13,9 +13,10 @@ dbg_log() {
   local msg="$1"; shift
   local data_json="${1:-{}}"
   local ts; ts="$(date +%s%3N)"
+  local log_path="${DEBUG_LOG_PATH:-/tmp/cs1380-debug.log}"
   printf '{"sessionId":"debug-session","runId":"%s","hypothesisId":"%s","location":%s,"message":%s,"data":%s,"timestamp":%s}\n' \
     "$runId" "$hyp" "$(dbg_escape_json "$loc")" "$(dbg_escape_json "$msg")" "$data_json" "$ts" \
-    >>"/Users/maxwang/Desktop/Distributed_Systems/.cursor/debug.log" 2>/dev/null || true
+    >>"$log_path" 2>/dev/null || true
 }
 # #endregion
 
