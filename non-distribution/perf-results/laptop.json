@@ -1,0 +1,31 @@
+{
+  "env": "laptop",
+  "timestamp_utc": "2026-01-28T19:32:19Z",
+  "tests": {
+    "status": "fail"
+  },
+  "corpus": {
+    "path": "/Users/maxwang/Desktop/Distributed_Systems/stencil/non-distribution/d/corpora/sandbox2.txt",
+    "basename": "sandbox2.txt",
+    "nonempty_lines": 4,
+    "bytes": 243,
+    "sha256": "7272eb9a20f7a0c8d11ac677b8366c2f11facefe807a4e564ee856bc1c961adf"
+  },
+  "throughput": {
+    "crawler": {
+      "pages": 4,
+      "seconds": 2.619982,
+      "pages_per_sec": 1.526728
+    },
+    "indexer": {
+      "pages": 4,
+      "seconds": 37.803609,
+      "pages_per_sec": 0.105810
+    },
+    "query": {
+      "queries": 25,
+      "seconds": 8.223420,
+      "queries_per_sec": 3.040098
+    }
+  }
+}

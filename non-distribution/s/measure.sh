@@ -3,10 +3,13 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./s/measure.sh [--env local|cloud] [--corpus PATH] [--query-runs N]
+Usage: ./s/measure.sh [--env NAME] [--corpus PATH] [--query-runs N] [--tests-only]
 
 Runs all tests and measures throughput for crawler, indexer, and query.
 Outputs results to perf-results/<env>.json and perf-results/<env>-tests.log.
+
+Use --tests-only to collect correctness results without running performance
+benchmarks (useful for environments where benchmarking isn't required).
 EOF
 }
 
@@ -17,6 +20,7 @@ OUT_DIR="$ROOT_DIR/perf-results"
 ENV_NAME="local"
 CORPUS_FILE="$DATA_DIR/urls.txt"
 QUERY_RUNS=50
+TESTS_ONLY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -32,6 +36,10 @@ while [[ $# -gt 0 ]]; do
       QUERY_RUNS="${2:-}"
       shift 2
       ;;
+    --tests-only)
+      TESTS_ONLY=1
+      shift 1
+      ;;
     -h|--help)
       usage
       exit 0
@@ -45,7 +53,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$ENV_NAME" ]]; then
-  echo "Missing --env value" >&2
+  echo "--env must be non-empty" >&2
   exit 1
 fi
 
@@ -73,92 +81,124 @@ set +e
 (cd "$ROOT_DIR" && npm test) >"$TEST_LOG" 2>&1
 TEST_EXIT=$?
 set -e
+
+TEST_STATUS="fail"
 if [[ $TEST_EXIT -eq 0 ]]; then
   TEST_STATUS="pass"
-else
-  TEST_STATUS="fail"
 fi
 
-# Reset data files for a clean measurement run.
+# If we only need correctness, write a minimal JSON result and stop.
+if [[ "$TESTS_ONLY" -eq 1 ]]; then
+  timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  OUT_JSON="$OUT_DIR/${ENV_NAME}.json"
+  cat >"$OUT_JSON" <<EOF
+{
+  "env": "$ENV_NAME",
+  "timestamp_utc": "$timestamp",
+  "tests": {
+    "status": "$TEST_STATUS"
+  },
+  "throughput": null
+}
+EOF
+  echo "Wrote results to $OUT_JSON"
+  exit 0
+fi
+
+# Reset data files
 cp -a "$backup_dir/d/stopwords.txt" "$DATA_DIR/stopwords.txt"
-cp -a "$CORPUS_FILE" "$DATA_DIR/urls.txt"
+
+# Only copy corpus if it's not already d/urls.txt
+if [[ "$CORPUS_FILE" != "$DATA_DIR/urls.txt" ]]; then
+  cp -a "$CORPUS_FILE" "$DATA_DIR/urls.txt"
+fi
+
 : >"$DATA_DIR/visited.txt"
 : >"$DATA_DIR/global-index.txt"
 : >"$DATA_DIR/local-index.txt"
 : >"$DATA_DIR/content.txt"
 
-mapfile -t URLS < <(grep -v '^[[:space:]]*$' "$CORPUS_FILE")
+# Read urls in a bash-3.2 compatible way (no mapfile).
+URLS=()
+while IFS= read -r line; do
+  [[ -z "${line//[[:space:]]/}" ]] && continue
+  URLS+=("$line")
+done < "$DATA_DIR/urls.txt"
 URL_COUNT="${#URLS[@]}"
 
 if [[ "$URL_COUNT" -eq 0 ]]; then
-  echo "Corpus file is empty: $CORPUS_FILE" >&2
+  echo "Corpus file is empty" >&2
   exit 1
 fi
 
 tmp_dir="$(mktemp -d)"
 
-ns_elapsed() {
-  local start_ns="$1"
-  local end_ns="$2"
-  awk -v s="$start_ns" -v e="$end_ns" 'BEGIN {printf "%.6f", (e - s) / 1000000000}'
+now_s() {
+  # Portable timer for macOS (bash 3.2) and Linux.
+  # Use wall clock seconds since epoch (comparable across processes).
+  python3 -c 'import time; print("{:.9f}".format(time.time()))'
 }
 
 per_sec() {
   local count="$1"
   local seconds="$2"
-  awk -v c="$count" -v s="$seconds" 'BEGIN {if (s==0) {print "inf"} else {printf "%.6f", c / s}}'
+  awk -v c="$count" -v s="$seconds" 'BEGIN {printf "%.6f", c / s}'
 }
 
-# Crawler throughput: pages/sec
-CRAWL_START_NS="$(date +%s%N)"
+# Crawler throughput
+CRAWL_START_S="$(now_s)"
 for i in "${!URLS[@]}"; do
-  url="${URLS[$i]}"
-  "$ROOT_DIR/crawl.sh" "$url" >"$tmp_dir/content_$i.txt"
+  "$ROOT_DIR/crawl.sh" "${URLS[$i]}" >"$tmp_dir/content_$i.txt"
 done
-CRAWL_END_NS="$(date +%s%N)"
-CRAWL_SECONDS="$(ns_elapsed "$CRAWL_START_NS" "$CRAWL_END_NS")"
+CRAWL_END_S="$(now_s)"
+CRAWL_SECONDS="$(awk -v a="$CRAWL_START_S" -v b="$CRAWL_END_S" 'BEGIN{printf "%.6f", (b-a)}')"
 CRAWL_TPUT="$(per_sec "$URL_COUNT" "$CRAWL_SECONDS")"
 
-# Indexer throughput: pages/sec
+# Indexer throughput
 : >"$DATA_DIR/global-index.txt"
-INDEX_START_NS="$(date +%s%N)"
+INDEX_START_S="$(now_s)"
 for i in "${!URLS[@]}"; do
-  url="${URLS[$i]}"
-  "$ROOT_DIR/index.sh" "$tmp_dir/content_$i.txt" "$url"
+  "$ROOT_DIR/index.sh" "$tmp_dir/content_$i.txt" "${URLS[$i]}"
 done
-INDEX_END_NS="$(date +%s%N)"
-INDEX_SECONDS="$(ns_elapsed "$INDEX_START_NS" "$INDEX_END_NS")"
+INDEX_END_S="$(now_s)"
+INDEX_SECONDS="$(awk -v a="$INDEX_START_S" -v b="$INDEX_END_S" 'BEGIN{printf "%.6f", (b-a)}')"
 INDEX_TPUT="$(per_sec "$URL_COUNT" "$INDEX_SECONDS")"
 
-# Query throughput: queries/sec
+# Query throughput
 QUERIES=("sherlock" "adventure" "hector" "war" "trojan")
 TOTAL_QUERIES=$((QUERY_RUNS * ${#QUERIES[@]}))
-QUERY_START_NS="$(date +%s%N)"
+QUERY_START_S="$(now_s)"
 for _ in $(seq 1 "$QUERY_RUNS"); do
   for q in "${QUERIES[@]}"; do
     "$ROOT_DIR/query.js" "$q" >/dev/null
   done
 done
-QUERY_END_NS="$(date +%s%N)"
-QUERY_SECONDS="$(ns_elapsed "$QUERY_START_NS" "$QUERY_END_NS")"
+QUERY_END_S="$(now_s)"
+QUERY_SECONDS="$(awk -v a="$QUERY_START_S" -v b="$QUERY_END_S" 'BEGIN{printf "%.6f", (b-a)}')"
 QUERY_TPUT="$(per_sec "$TOTAL_QUERIES" "$QUERY_SECONDS")"
 
 timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 OUT_JSON="$OUT_DIR/${ENV_NAME}.json"
 
+corpus_basename="$(basename "$CORPUS_FILE")"
+corpus_abs="$(cd "$(dirname "$CORPUS_FILE")" && pwd)/$corpus_basename"
+corpus_lines="$(grep -v '^[[:space:]]*$' "$CORPUS_FILE" 2>/dev/null | wc -l | tr -d ' ')"
+corpus_bytes="$(wc -c <"$CORPUS_FILE" | tr -d ' ')"
+corpus_sha256="$(python3 -c 'import hashlib,sys; p=sys.argv[1]; h=hashlib.sha256(); h.update(open(p,"rb").read()); print(h.hexdigest())' "$CORPUS_FILE" 2>/dev/null || echo "")"
+
 cat >"$OUT_JSON" <<EOF
 {
   "env": "$ENV_NAME",
   "timestamp_utc": "$timestamp",
-  "corpus": {
-    "file": "$CORPUS_FILE",
-    "count": $URL_COUNT
-  },
   "tests": {
-    "command": "npm test",
-    "status": "$TEST_STATUS",
-    "exit_code": $TEST_EXIT,
-    "log": "$TEST_LOG"
+    "status": "$TEST_STATUS"
+  },
+  "corpus": {
+    "path": "$corpus_abs",
+    "basename": "$corpus_basename",
+    "nonempty_lines": $corpus_lines,
+    "bytes": $corpus_bytes,
+    "sha256": "$corpus_sha256"
   },
   "throughput": {
     "crawler": {
@@ -174,9 +214,7 @@ cat >"$OUT_JSON" <<EOF
     "query": {
       "queries": $TOTAL_QUERIES,
       "seconds": $QUERY_SECONDS,
-      "queries_per_sec": $QUERY_TPUT,
-      "runs": $QUERY_RUNS,
-      "terms": ["sherlock", "adventure", "hector", "war", "trojan"]
+      "queries_per_sec": $QUERY_TPUT
     }
   }
 }
