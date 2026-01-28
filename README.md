@@ -1,6 +1,6 @@
 # distribution
 
-This is the distribution library. 
+This is the distribution library.
 
 ## Environment Setup
 
@@ -20,17 +20,18 @@ This command downloads and installs the distribution library.
 ## Testing
 
 There are several categories of tests:
-  *	Regular Tests (`*.test.js`)
-  *	Scenario Tests (`*.scenario.js`)
-  *	Extra Credit Tests (`*.extra.test.js`)
-  * Student Tests (`*.student.test.js`) - inside `test/test-student`
+
+- Regular Tests (`*.test.js`)
+- Scenario Tests (`*.scenario.js`)
+- Extra Credit Tests (`*.extra.test.js`)
+- Student Tests (`*.student.test.js`) - inside `test/test-student`
 
 ### Running Tests
 
 By default, all regular tests are run. Use the options below to run different sets of tests:
 
 1. Run all regular tests (default): `$ npm test` or `$ npm test -- -t`
-2. Run scenario tests: `$ npm test -- -c` 
+2. Run scenario tests: `$ npm test -- -c`
 3. Run extra credit tests: `$ npm test -- -ec`
 4. Run the `non-distribution` tests: `$ npm test -- -nd`
 5. Combine options: `$ npm test -- -c -ec -nd -t`
@@ -50,7 +51,7 @@ Then, load the distribution library:
 > distribution.node.start(console.log);
 ```
 
-Now you have access to the full distribution library. You can start off by serializing some values. 
+Now you have access to the full distribution library. You can start off by serializing some values.
 
 ```js
 > s = distribution.util.serialize(1); // '{"type":"number","value":"1"}'
@@ -66,7 +67,7 @@ You can inspect information about the current node (for example its `sid`) by ru
 You can also store and retrieve values from the local memory:
 
 ```js
-> distribution.local.mem.put({name: 'nikos'}, 'key', console.log); // null {name: 'nikos'} (again, null is the error value) 
+> distribution.local.mem.put({name: 'nikos'}, 'key', console.log); // null {name: 'nikos'} (again, null is the error value)
 > distribution.local.mem.get('key', console.log); // null {name: 'nikos'}
 
 > distribution.local.mem.get('wrong-key', console.log); // Error('Key not found') undefined
@@ -79,7 +80,7 @@ You can also spawn a new node:
 > distribution.local.status.spawn(node, console.log);
 ```
 
-Using the `distribution.all` set of services will allow you to act 
+Using the `distribution.all` set of services will allow you to act
 on the full set of nodes created as if they were a single one.
 
 ```js
@@ -104,20 +105,24 @@ const out = (cb) => {
 };
 distribution.node.start(() => {
   // This will run only after the node has started
-  const node = {ip: '127.0.0.1', port: 8765};
+  const node = { ip: "127.0.0.1", port: 8765 };
   distribution.local.status.spawn(node, (e, v) => {
     if (e) {
       return out(console.log);
     }
     // This will run only after the new node has been spawned
-    distribution.all.status.get('sid', (e, v) => {
+    distribution.all.status.get("sid", (e, v) => {
       // This will run only after we communicated with all nodes and got their sids
       console.log(v); // { '8cf1b': '8cf1b', '8cf1c': '8cf1c' }
       // Shut down the remote node
-      distribution.local.comm.send([], {service: 'status', method: 'stop', node: node}, () => {
-        // Finally, stop the local node
-        out(console.log); // null, {ip: '127.0.0.1', port: 1380}
-      });
+      distribution.local.comm.send(
+        [],
+        { service: "status", method: "stop", node: node },
+        () => {
+          // Finally, stop the local node
+          out(console.log); // null, {ip: '127.0.0.1', port: 1380}
+        },
+      );
     });
   });
 });
@@ -125,4 +130,32 @@ distribution.node.start(() => {
 
 # Results and Reflections
 
-> ...
+# M0: Setup & Centralized Computing
+
+- name: Mohan Wang
+
+- email: mohan_wang@brown.edu
+
+- cslogin: mwang264
+
+## Summary
+
+My implementation consists of 6 core components (5 JavaScript + 1 shell) plus testing, deployment configuration, performance characterization, and documentation to address T1–T8:
+
+JavaScript: stem.js, getText.js, getURLs.js, merge.js, query.js
+Shell: process.sh
+Tests: component tests + edge cases under non-distribution/t/ts/
+Deployment: configured EC2 IP/port in non-distribution/package.json, verified server connectivity
+Performance: measured throughput for crawler, indexer, and query subsystems on local + EC2 and recorded results in package.json
+
+The most challenging aspect was merge.js because the inverted index format requires preserving multiple invariants simultaneously (sorted terms, correct URL-weight ordering, and stable merging behavior when terms appear across multiple pages). Debugging also required carefully validating intermediate streams (content, tokens, partial indices) to ensure the merged global index stayed consistent.
+
+## Correctness & Performance Characterization
+
+To characterize correctness, we developed 10 tests that cover both individual components and end-to-end behavior. These tests validate the correctness of text extraction (getText.js), URL extraction and normalization (getURLs.js), token processing and stopword removal (process.sh), stemming (stem.js), and index merging (merge.js). We also included edge-case tests such as handling empty or malformed HTML, relative vs. absolute URLs, missing global index files, and duplicate terms or URLs in the local index. Finally, we added an end-to-end test that runs the full pipeline from crawling through querying to ensure all components integrate correctly.
+
+On the local development environment, the crawler achieved a throughput of 1.53 pages/sec, the indexer achieved 0.11 pages/sec, and the query engine achieved 3.04 queries/sec. On AWS EC2, the crawler achieved 0.73 pages/sec, the indexer achieved 0.29 pages/sec, and the query engine achieved 1.38 queries/sec.
+
+## Wild Guess
+
+I need to have to add code for, coordinating multiple workers across machines, distributed storage for the URL frontier, visited set, and index, partitioning/sharding and merging index updates across nodes, routing queries to the right shards and aggregating results, and handling failures, retries, and monitoring. So a few thousand lines (≈5k) is a reasonable estimate.

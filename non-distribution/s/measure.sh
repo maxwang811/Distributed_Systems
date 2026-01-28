@@ -118,7 +118,6 @@ fi
 : >"$DATA_DIR/local-index.txt"
 : >"$DATA_DIR/content.txt"
 
-# Read urls in a bash-3.2 compatible way (no mapfile).
 URLS=()
 while IFS= read -r line; do
   [[ -z "${line//[[:space:]]/}" ]] && continue
@@ -134,8 +133,6 @@ fi
 tmp_dir="$(mktemp -d)"
 
 now_s() {
-  # Portable timer for macOS (bash 3.2) and Linux.
-  # Use wall clock seconds since epoch (comparable across processes).
   python3 -c 'import time; print("{:.9f}".format(time.time()))'
 }
 
@@ -145,7 +142,6 @@ per_sec() {
   awk -v c="$count" -v s="$seconds" 'BEGIN {printf "%.6f", c / s}'
 }
 
-# Crawler throughput
 CRAWL_START_S="$(now_s)"
 for i in "${!URLS[@]}"; do
   "$ROOT_DIR/crawl.sh" "${URLS[$i]}" >"$tmp_dir/content_$i.txt"
@@ -154,7 +150,6 @@ CRAWL_END_S="$(now_s)"
 CRAWL_SECONDS="$(awk -v a="$CRAWL_START_S" -v b="$CRAWL_END_S" 'BEGIN{printf "%.6f", (b-a)}')"
 CRAWL_TPUT="$(per_sec "$URL_COUNT" "$CRAWL_SECONDS")"
 
-# Indexer throughput
 : >"$DATA_DIR/global-index.txt"
 INDEX_START_S="$(now_s)"
 for i in "${!URLS[@]}"; do
@@ -164,7 +159,6 @@ INDEX_END_S="$(now_s)"
 INDEX_SECONDS="$(awk -v a="$INDEX_START_S" -v b="$INDEX_END_S" 'BEGIN{printf "%.6f", (b-a)}')"
 INDEX_TPUT="$(per_sec "$URL_COUNT" "$INDEX_SECONDS")"
 
-# Query throughput
 QUERIES=("sherlock" "adventure" "hector" "war" "trojan")
 TOTAL_QUERIES=$((QUERY_RUNS * ${#QUERIES[@]}))
 QUERY_START_S="$(now_s)"
