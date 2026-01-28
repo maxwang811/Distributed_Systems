@@ -1,0 +1,31 @@
+{
+  "env": "cloud",
+  "timestamp_utc": "2026-01-28T20:05:56Z",
+  "tests": {
+    "status": "fail"
+  },
+  "corpus": {
+    "path": "/home/ubuntu/Distributed_Systems/non-distribution/d/corpora/sandbox2.txt",
+    "basename": "sandbox2.txt",
+    "nonempty_lines": 4,
+    "bytes": 243,
+    "sha256": "7272eb9a20f7a0c8d11ac677b8366c2f11facefe807a4e564ee856bc1c961adf"
+  },
+  "throughput": {
+    "crawler": {
+      "pages": 4,
+      "seconds": 5.516278,
+      "pages_per_sec": 0.725127
+    },
+    "indexer": {
+      "pages": 4,
+      "seconds": 13.684400,
+      "pages_per_sec": 0.292304
+    },
+    "query": {
+      "queries": 250,
+      "seconds": 181.735569,
+      "queries_per_sec": 1.375625
+    }
+  }
+}

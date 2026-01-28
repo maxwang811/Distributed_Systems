@@ -1,0 +1,60 @@
+[engine] indexing https://cs.brown.edu/courses/csci1380/sandbox/2/static/book3.txt
+./index.sh: line 16: /Users/maxwang/Desktop/Distributed_Systems/.cursor/debug.log: No such file or directory
+./index.sh: line 16: /Users/maxwang/Desktop/Distributed_Systems/.cursor/debug.log: No such file or directory
+./engine.sh: line 14: /Users/maxwang/Desktop/Distributed_Systems/.cursor/debug.log: No such file or directory
+FAIL t/m0.se.test.js (62.505 s)
+  ✓ (9 pts) test student (28 ms)
+  ✕ (5 pts) lint (1315 ms)
+  ✓ (7 pts) test-stem (468 ms)
+  ✓ (7 pts) test-query (545 ms)
+  ✓ (5 pts) test-process (17 ms)
+  ✓ (5 pts) test-merge-heredoc (78 ms)
+  ✓ (8 pts) test-merge (159 ms)
+  ✓ (5 pts) test-combine (41 ms)
+  ✓ (7 pts) test-invert (23 ms)
+  ✓ (5 pts) test-getURL (1286 ms)
+  ✓ (7 pts) test-getText (95 ms)
+  ✓ (10 pts) test-end_to_end (18553 ms)
+  ✓ (20 pts) test-sandbox_1 (19334 ms)
+  ✓ (20 pts) test-sandbox_2 (20137 ms)
+
+  ● (5 pts) lint
+
+    Command failed: "/home/ubuntu/Distributed_Systems/non-distribution/t/test-lint.sh"
+
+    In ./s/measure.sh line 185:
+    corpus_lines="$(grep -v '^[[:space:]]*$' "$CORPUS_FILE" 2>/dev/null | wc -l | tr -d ' ')"
+                    ^-- SC2126 (style): Consider using 'grep -c' instead of 'grep|wc -l'.
+
+    For more information:
+      https://www.shellcheck.net/wiki/SC2126 -- Consider using 'grep -c' instead ...
+
+    > cs1380:m0@1.0.0 lint
+    > eslint . --config .eslintrc --rulesdir ../scripts/eslint-rules --fix
+
+
+    Oops! Something went wrong! :(
+
+    ESLint: 8.57.1
+
+    ESLint couldn't find the config "google" to extend from. Please check that the name of the config is correct.
+
+    The config "google" was referenced from the config file in "/home/ubuntu/Distributed_Systems/.eslintrc".
+
+    If you still have problems, please stop by https://eslint.org/chat/help to chat with the team.
+
+       9 | test('(5 pts) lint', () => {
+      10 |   const command = `"${path.join(__dirname, 'test-lint.sh')}"`;
+    > 11 |   execSync(command).toString().trim();
+         |   ^
+      12 | });
+      13 |
+      14 | test('(7 pts) test-stem', () => {
+
+      at Object.execSync (t/m0.se.test.js:11:3)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 13 passed, 14 total
+Snapshots:   0 total
+Time:        62.537 s
+Ran all test suites.
