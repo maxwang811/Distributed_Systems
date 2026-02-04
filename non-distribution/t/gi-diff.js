@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-/* Global Index Diff Checker */
 
 const fs = require('fs');
 const {exit} = require('process');
@@ -115,7 +114,7 @@ const identical = (l1, l2) => {
 try {
   let wrong = 0;
   let total = 0;
-  const slack = parseInt(process.env['DIFF_PERCENT'], 10); // percentage
+  const slack = parseInt(process.env['DIFF_PERCENT'], 10);
   if (isNaN(slack)) {
     console.error('environment variable DIFF_PERCENT is not defined');
     exit(1);

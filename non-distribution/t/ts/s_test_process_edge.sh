@@ -1,5 +1,4 @@
 #!/bin/bash
-# Student edge-case test for process.sh
 
 cd "$(dirname "$0")/.." || exit 1
 

@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+                      
 
-# Fuzzy diff: compares two input files for approximate difference, as sets of
-# lines; takes an onptional third argument of percent difference acceptable.
+                                                                             
+                                                                            
 
 import sys, os
 

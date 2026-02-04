@@ -1,5 +1,4 @@
 #!/bin/bash
-# Student test for getText.js
 
 T_FOLDER=${T_FOLDER:-t}
 

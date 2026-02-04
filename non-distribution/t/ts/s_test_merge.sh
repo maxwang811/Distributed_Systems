@@ -1,5 +1,4 @@
 #!/bin/bash
-# Student test for merge.js
 
 cd "$(dirname "$0")/.." || exit 1
 

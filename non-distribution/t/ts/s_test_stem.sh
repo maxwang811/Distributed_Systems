@@ -1,5 +1,4 @@
 #!/bin/bash
-# Student test for stem.js
 
 cd "$(dirname "$0")/.." || exit 1
 

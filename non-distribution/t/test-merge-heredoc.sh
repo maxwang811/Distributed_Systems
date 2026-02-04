@@ -2,7 +2,6 @@
 
 DIFF_PERCENT=${DIFF_PERCENT:-0}
 
-# create file inline
 LOCAL_INDEX_FILE="$(
 cat << EOF
 stuff level | 3 | https://cs.brown.edu/courses/csci1380/sandbox/1

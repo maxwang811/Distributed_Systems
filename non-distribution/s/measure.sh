@@ -87,7 +87,6 @@ if [[ $TEST_EXIT -eq 0 ]]; then
   TEST_STATUS="pass"
 fi
 
-# If we only need correctness, write a minimal JSON result and stop.
 if [[ "$TESTS_ONLY" -eq 1 ]]; then
   timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   OUT_JSON="$OUT_DIR/${ENV_NAME}.json"

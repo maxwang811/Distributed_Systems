@@ -1,5 +1,4 @@
 #!/bin/bash
-# Student test for query.js
 
 cd "$(dirname "$0")/.." || exit 1
 

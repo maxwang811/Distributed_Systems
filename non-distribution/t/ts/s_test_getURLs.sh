@@ -1,5 +1,4 @@
 #!/bin/bash
-# Student test for getURLs.js
 
 T_FOLDER=${T_FOLDER:-t}
 

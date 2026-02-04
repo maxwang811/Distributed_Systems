@@ -8,13 +8,10 @@ Usage: ./s/collect-results.sh --env ENV [--corpus PATH] [--query-runs N] [--test
 Convenience wrapper around ./s/measure.sh that standardizes output location.
 
 Examples:
-  # Laptop performance (documented corpus):
   ./s/collect-results.sh --env laptop --corpus d/corpora/sandbox2.txt --query-runs 50
 
-  # Cloud performance:
   ./s/collect-results.sh --env cloud --corpus d/corpora/sandbox2.txt --query-runs 50
 
-  # Correctness-only (e.g., Gradescope-like environment):
   ./s/collect-results.sh --env gradescope --tests-only
 EOF
 }

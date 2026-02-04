@@ -1,5 +1,4 @@
 #!/bin/bash
-# Student test for process.sh
 
 T_FOLDER=${T_FOLDER:-t}
 

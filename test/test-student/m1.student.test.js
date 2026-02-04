@@ -7,31 +7,54 @@
 */
 
 const distribution = require('../../distribution.js')();
+const util = distribution.util;
 require('../helpers/sync-guard');
 
 test('(1 pts) student test', () => {
-  // Fill out this test case...
-    throw new Error('Not implemented');
+  const object = {a: 1, arr: [2, {b: 'x'}], fn: (x) => x + 1};
+  const serialized = util.serialize(object);
+  const deserialized = util.deserialize(serialized);
+
+  expect(typeof deserialized.fn).toEqual('function');
+  expect(deserialized.fn(2)).toEqual(3);
+  delete object.fn;
+  delete deserialized.fn;
+  expect(deserialized).toEqual(object);
 });
 
 
 test('(1 pts) student test', () => {
-  // Fill out this test case...
-    throw new Error('Not implemented');
+  const error = new TypeError('bad input');
+  const serialized = util.serialize(error);
+  const deserialized = util.deserialize(serialized);
+
+  expect(deserialized).toBeInstanceOf(Error);
+  expect(deserialized.name).toEqual('TypeError');
+  expect(deserialized.message).toEqual('bad input');
 });
 
 
 test('(1 pts) student test', () => {
-  // Fill out this test case...
-    throw new Error('Not implemented');
+  const date = new Date('2021-02-03T04:05:06.000Z');
+  const serialized = util.serialize(date);
+  const deserialized = util.deserialize(serialized);
+
+  expect(deserialized instanceof Date).toEqual(true);
+  expect(deserialized.getTime()).toEqual(date.getTime());
 });
 
 test('(1 pts) student test', () => {
-  // Fill out this test case...
-    throw new Error('Not implemented');
+  const original = '\\\\string\\n\\t\\r\"';
+  const serialized = util.serialize(original);
+  const deserialized = util.deserialize(serialized);
+  expect(deserialized).toEqual(original);
 });
 
 test('(1 pts) student test', () => {
-  // Fill out this test case...
-    throw new Error('Not implemented');
+  const original = {a: undefined, b: null, c: 0};
+  const serialized = util.serialize(original);
+  const deserialized = util.deserialize(serialized);
+
+  expect(Object.prototype.hasOwnProperty.call(deserialized, 'a')).toEqual(true);
+  expect(deserialized).toEqual(original);
 });
