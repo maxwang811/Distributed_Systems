@@ -159,3 +159,19 @@ On the local development environment, the crawler achieved a throughput of 1.53 
 ## Wild Guess
 
 I need to have to add code for, coordinating multiple workers across machines, distributed storage for the URL frontier, visited set, and index, partitioning/sharding and merging index updates across nodes, routing queries to the right shards and aggregating results, and handling failures, retries, and monitoring. So a few thousand lines (≈5k) is a reasonable estimate.
+
+# M1: Serialization / Deserialization
+
+## Summary
+
+> Summarize your implementation, including key challenges you encountered. Remember to update the `report` section of the `package.json` file with the total number of hours it took you to complete each task of M1 (`hours`) and the lines of code per task.
+
+My implementation comprises `<number>` software components, totaling `<number>` lines of code. Key challenges included `<1, 2, 3 + how you solved them>`.
+
+## Correctness & Performance Characterization
+
+> Describe how you characterized the correctness and performance of your implementation
+
+_Correctness_: I wrote `<number>` tests; these tests take `<time>` to execute. This includes objects with `<certain kinds of features>`.
+
+_Performance_: The latency of various subsystems is described in the `"latency"` portion of package.json. The characteristics of my development machines are summarized in the `"dev"` portion of package.json.

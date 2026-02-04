@@ -19,7 +19,7 @@
     "test": "./scripts/test.sh",
     "lint": "./scripts/lint.sh"
   },
-  "author": "",
+  "author": "Mohan Wang",
   "license": "ISC",
   "dependencies": {
     "@brown-ds/distribution": "^0.2.32",
@@ -28,22 +28,22 @@
   "report": [
     {
       "milestone": "M1",
-      "hours": 999,
-      "loc": 999,
+      "hours": 8,
+      "loc": 130,
       "dev": {
-        "cpu-no": 999,
-        "mem-gb": 999,
-        "ssd-gb": 999
+        "cpu-no": 8,
+        "mem-gb": 8,
+        "ssd-gb": 512
       },
       "throughput": {
         "dev": [],
         "aws": []
       },
       "latency": {
-        "dev": [],
-        "aws": []
+        "dev": [0.009172734999999991, 0.008713109999999994, 0.06130308999999999],
+        "aws": [0.017524255, 0.017590795, 0.139628335]
       },
-      "dloc": -99
+      "dloc": 130
     },
     {
       "milestone": "M2",
