@@ -164,14 +164,12 @@ I need to have to add code for, coordinating multiple workers across machines, d
 
 ## Summary
 
-> Summarize your implementation, including key challenges you encountered. Remember to update the `report` section of the `package.json` file with the total number of hours it took you to complete each task of M1 (`hours`) and the lines of code per task.
-
-My implementation comprises `<number>` software components, totaling `<number>` lines of code. Key challenges included `<1, 2, 3 + how you solved them>`.
+My implementation comprises 4 major software components (the serializer, deserializer, test suite, and performance harness), totaling approximately 450 lines of code. Key challenges included designing a recursive serialization format, correctly handling JavaScript edge cases such as functions, dates, and errors, and building a systematic latency benchmarking framework. I addressed these challenges by using a tagged JSON representation for all values, implementing recursive descent for complex data structures, and constructing automated student tests and timing harnesses to validate both correctness and performance.
 
 ## Correctness & Performance Characterization
 
 > Describe how you characterized the correctness and performance of your implementation
 
-_Correctness_: I wrote `<number>` tests; these tests take `<time>` to execute. This includes objects with `<certain kinds of features>`.
+_Correctness_: I wrote 5 student tests and 5 scenarios; these tests take under one second to execute. The test suite covers objects with nested structures, arrays, functions, dates, errors, and primitive base types, ensuring that both simple and complex values are correctly serialized and deserialized.
 
 _Performance_: The latency of various subsystems is described in the `"latency"` portion of package.json. The characteristics of my development machines are summarized in the `"dev"` portion of package.json.
