@@ -4,10 +4,10 @@ const util = distribution.util;
 
 test('(3 pts) (scenario) 40 bytes object', () => {
   /*
-          Come up with a JavaScript object, which when serialized,
+          Come up with a JavaScript value, which when serialized,
           will result in a string that is 40 bytes in size.
       */
-  let object = 'abcdefghijkl';
+  let object = undefined;
 
   const serialized = util.serialize(object);
   expect(serialized.length).toEqual(40);
@@ -17,7 +17,7 @@ test('(3 pts) (scenario) expected object', () => {
   /* Prepare an object so it results in an expected serialized string. */
   let object = {a: 1};
 
-  let serializedObject = '{"type":"object","value":{"a":{"type":"number","value":"1"}}}'; /* Add here the expected serialized string by using util.serialize */
+  let serializedObject = '{"root":{"type":"ref","id":1},"nodes":{"1":{"type":"object","value":{"a":{"type":"number","value":"1"}}}}}'; /* Add here the expected serialized string by using util.serialize */
   expect(util.serialize(object)).toEqual(serializedObject);
 });
 
@@ -90,4 +90,3 @@ test('(3 pts) (scenario) malformed serialized string', () => {
     util.deserialize(malformedSerializedString);
   }).toThrow(SyntaxError);
 });
-
