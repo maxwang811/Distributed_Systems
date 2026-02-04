@@ -60,9 +60,12 @@ afterAll(() => {
   };
 
   for (const [name, data] of results.entries()) {
+    const serializeAvg = avg(data.serializeSamples);
+    const deserializeAvg = avg(data.deserializeSamples);
     summary.results[name] = {
-      serialize_avg_ms: avg(data.serializeSamples),
-      deserialize_avg_ms: avg(data.deserializeSamples),
+      serialize_avg_ms: serializeAvg,
+      deserialize_avg_ms: deserializeAvg,
+      avg_latency_ms: serializeAvg + deserializeAvg,
     };
   }
 
