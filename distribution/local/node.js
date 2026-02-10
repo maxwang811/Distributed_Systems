@@ -83,7 +83,12 @@ function start(callback) {
   const server = http.createServer((req, res) => {
     /* Your server will be listening for PUT requests. */
 
-    // Write some code...
+    if (req.method !== 'PUT') {
+      res.end(globalThis.distribution.util.serialize(
+          new Error('Method not allowed!'),
+      ));
+      return;
+    }
 
 
     /*
@@ -91,7 +96,15 @@ function start(callback) {
       The url will have the form: http://node_ip:node_port/service/method
     */
 
-    // Write some code...
+    const [,
+      gid,
+      serviceName,
+      methodName,
+    ] = url.parse(req.url).pathname.split('/');
+
+    log(
+        `[server] got request ${gid} ${serviceName}:${methodName} from ${req.socket.remoteAddress}`,
+    );
 
 
     /*
@@ -108,12 +121,11 @@ function start(callback) {
       Our nodes expect data in JSON format.
     */
 
-    // Write some code...
-
     /** @type {any[]} */
     const body = [];
 
     req.on('data', (chunk) => {
+      body.push(chunk);
     });
 
     req.on('end', () => {
@@ -125,7 +137,58 @@ function start(callback) {
         Then, you need to serialize the result and send it back to the caller.
       */
 
-      // Write some code...
+      let payload;
+      try {
+        if (body.length === 0) {
+          throw new Error('No body');
+        }
+        payload = Buffer.concat(body).toString();
+      } catch (error) {
+        res.end(globalThis.distribution.util.serialize([error]));
+        return;
+      }
+
+      const message = globalThis.distribution.util.deserialize(payload);
+      if (!Array.isArray(message)) {
+        res.end(globalThis.distribution.util.serialize([
+          new Error(`Invalid argument type, expected array, got ${typeof message}`),
+        ]));
+        return;
+      }
+
+      globalThis.distribution.local.routes.get(
+          {service: serviceName, gid: gid},
+          (error, service) => {
+            if (error) {
+              res.end(globalThis.distribution.util.serialize([error, null]));
+              return;
+            }
+            if (!service[methodName]) {
+              res.end(globalThis.distribution.util.serialize([
+                new Error(`Method ${methodName} not found in service ${serviceName}`),
+                null,
+              ]));
+              return;
+            }
+
+            log(
+                `[server]  Calling service: ${serviceName}:${methodName} with args: ${JSON.stringify(message)}`,
+            );
+
+            if (message.length === 0 && service[methodName].length === 1) {
+              message.push(undefined);
+            }
+            const method = service[methodName].bind(service);
+            const normalized = globalThis.distribution.util.normalize(method, message);
+            try {
+              method(...normalized, (err, value) => {
+                res.end(globalThis.distribution.util.serialize([err, value]));
+              });
+            } catch (err) {
+              res.end(globalThis.distribution.util.serialize([err, null]));
+            }
+          },
+      );
 
     });
   });
@@ -144,10 +207,12 @@ function start(callback) {
   const config = globalThis.distribution.node.config;
 
   server.once('listening', () => {
+    log(`Server running at http://${config.ip}:${config.port}/`);
     callback(null);
   });
 
   server.once('error', (error) => {
+    log(`Server error: ${error}`);
     callback(error);
   });
 
