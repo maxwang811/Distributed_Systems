@@ -23,7 +23,6 @@ function createRPC(func) {
     throw new Error('createRPC: distribution not initialized');
   }
 
-  // Lazily create a local RPC service registry.
   if (!globalThis.__rpcService) {
     globalThis.__rpcService = {
       serviceName: '__rpc__',
@@ -73,7 +72,6 @@ function createRPC(func) {
  */
 function toAsync(func) {
 
-  // It's the caller's responsibility to provide a callback
   const asyncFunc = (/** @type {any[]} */ ...args) => {
     const callback = args.pop();
     try {
@@ -84,8 +82,6 @@ function toAsync(func) {
     }
   };
 
-  /* Overwrite toString to return the original function's code.
-   Otherwise, all functions passed through toAsync would have the same id. */
   asyncFunc.toString = () => func.toString();
   return asyncFunc;
 }

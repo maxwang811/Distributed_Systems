@@ -17,13 +17,11 @@ test('(25 pts) rpc', (done) => {
   };
 
   distribution.local.routes.put(addOneService, 'rpcService', (e, v) => {
-    // Call the RPC stub locally
     addOneRPC((e, v) => {
       try {
         expect(e).toBeFalsy();
         expect(v).toEqual(1);
         expect(localVar).toEqual(1);
-        // Simulate a remote call
         distribution.local.comm.send([],
             {node: distribution.node.config, service: 'rpcService', method: 'addOneRemote'}, (e, v) => {
               try {
@@ -83,10 +81,6 @@ test('(25 pts) rpc w/ arguments', (done) => {
     });
   });
 });
-
-/*
-    Following is the setup for the tests.
-*/
 
 beforeAll((done) => {
   distribution.node.start((e) => {

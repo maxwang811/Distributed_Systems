@@ -1,8 +1,3 @@
-/*
-  Throughput characterization for comm and rpc.
-  Run locally and in cloud; set THROUGHPUT_ENV to label the environment.
-*/
-
 const distribution = require('../../distribution.js')({ip: '127.0.0.1', port: 1268});
 globalThis.distribution = distribution;
 require('../helpers/sync-guard');

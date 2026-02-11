@@ -85,10 +85,6 @@ function send(message, remote, callback) {
   const method = remote.method;
   const gid = remote.gid || 'local';
 
-  /**
-   * Best-effort local dispatch (used when network calls are blocked).
-   * @returns {boolean} true if a local dispatch was attempted.
-   */
   const tryLocalDispatch = () => {
     const routes = globalThis.distribution?.local?.routes;
     if (!routes) {
@@ -120,8 +116,6 @@ function send(message, remote, callback) {
     return true;
   };
 
-  // Always connect to the configured remote IP.
-  // `0.0.0.0` is a bind address, not a reliable client destination.
   const targetIp = node.ip;
 
   log(
