@@ -63,8 +63,16 @@ function send(message, remote, callback) {
     guardedCallback(new Error('Remote service is required'));
     return;
   }
+  if (typeof remote.service !== 'string' || remote.service.length === 0) {
+    guardedCallback(new Error('Remote service is invalid'));
+    return;
+  }
   if (remote?.method === undefined) {
     guardedCallback(new Error('Remote method is required'));
+    return;
+  }
+  if (typeof remote.method !== 'string' || remote.method.length === 0) {
+    guardedCallback(new Error('Remote method is invalid'));
     return;
   }
   if (!(message instanceof Array)) {

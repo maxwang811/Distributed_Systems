@@ -9,23 +9,27 @@ const log = require('./distribution/util/log.js');
  * @param {Node} [config]
  */
 function bootstrap(config) {
-    // This loads the reference implementation in case you want to selectively override parts of your implementation with it (e.g., extra credit ypu are not doing or missing functionality from previous milestones).
-    // This needs to run before the rest of the code so that the globalThis.distribution object is populated correctly.
-    // @ts-ignore Optional dependency for reference implementation.
-    const distributionLib = require('@brown-ds/distribution')(config);
-    distributionLib; // To avoid unused variable warning
+  const previousServer = globalThis.distribution?.node?.server;
+  if (previousServer && typeof previousServer.close === 'function') {
+    try {
+      previousServer.close();
+    } catch {
+      // Ignore best-effort shutdown errors from previous test contexts.
+    }
+  }
+
   const distribution = {};
 
-  // @ts-ignore This is the first time globalThis.distribution is being initialized, so the object does not have all the necessary properties.
-  globalThis.distribution = distribution;
+
   distribution.util = require('./distribution/util/util.js');
 
-  // @ts-ignore node.server is lazily initialized.
   distribution.node = require('./distribution/local/node.js');
   if (config) {
     distribution.node.config = config;
   }
   distribution.local = require('./distribution/local/local.js');
+  // Some group services reference globalThis.distribution during setup.
+  globalThis.distribution = distribution;
 
   const {setup} = require('./distribution/all/all.js');
   distribution.all = setup({gid: 'all'});

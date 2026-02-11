@@ -80,6 +80,12 @@ function setNodeConfig() {
  * @returns {void}
  */
 function start(callback) {
+  const existingServer = globalThis.distribution?.node?.server;
+  if (existingServer && typeof existingServer.close === 'function' && existingServer.listening) {
+    existingServer.close(() => start(callback));
+    return;
+  }
+
   const server = http.createServer((req, res) => {
     /* Your server will be listening for PUT requests. */
 
@@ -148,7 +154,13 @@ function start(callback) {
         return;
       }
 
-      const message = globalThis.distribution.util.deserialize(payload);
+      let message;
+      try {
+        message = globalThis.distribution.util.deserialize(payload);
+      } catch (error) {
+        res.end(globalThis.distribution.util.serialize([error, null]));
+        return;
+      }
       if (!Array.isArray(message)) {
         res.end(globalThis.distribution.util.serialize([
           new Error(`Invalid argument type, expected array, got ${typeof message}`),
@@ -180,12 +192,13 @@ function start(callback) {
             }
             const method = service[methodName].bind(service);
             const normalized = globalThis.distribution.util.normalize(method, message);
+            const done = (err, value) => {
+              res.end(globalThis.distribution.util.serialize([err, value]));
+            };
             try {
-              method(...normalized, (err, value) => {
-                res.end(globalThis.distribution.util.serialize([err, value]));
-              });
+              method(...normalized, done);
             } catch (err) {
-              res.end(globalThis.distribution.util.serialize([err, null]));
+              done(err, null);
             }
           },
       );

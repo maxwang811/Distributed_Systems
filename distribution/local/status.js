@@ -87,23 +87,32 @@ function spawn(configuration, callback) {
     throw new Error('Failed to find project root.');
   };
 
+  let settled = false;
+  const done = (err, nodeConfig) => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    callback(err, nodeConfig);
+  };
+
   const onSpawned = (err, nodeConfig) => {
     if (err) {
-      callback(err);
+      done(err);
       return;
     }
     const groups = globalThis.distribution?.local?.groups;
     if (groups && typeof groups.add === 'function') {
       groups.add('all', nodeConfig, (e) => {
         if (e) {
-          callback(e);
+          done(e);
           return;
         }
-        callback(null, nodeConfig);
+        done(null, nodeConfig);
       });
       return;
     }
-    callback(null, nodeConfig);
+    done(null, nodeConfig);
   };
 
   const createOnStart = (onStart, cb) => {
@@ -120,7 +129,11 @@ function spawn(configuration, callback) {
         }
         try {
           onStart();
-          callbackRPC(null, globalThis.distribution.node.config, () => {});
+          const startedConfig = globalThis.distribution.node.config || {};
+          callbackRPC(null, {
+            ip: startedConfig.ip,
+            port: startedConfig.port,
+          }, () => {});
         } catch (err) {
           callbackRPC(err, null, () => {});
         }
@@ -129,15 +142,29 @@ function spawn(configuration, callback) {
     return new Function(body)();
   };
 
-  config.onStart = createOnStart(config.onStart, onSpawned);
+  const timeout = setTimeout(() => {
+    onSpawned(new Error(`status.spawn: timeout while starting node ${config.ip}:${config.port}`));
+  }, 3000);
+  const wrapped = (err, nodeConfig) => {
+    clearTimeout(timeout);
+    onSpawned(err, nodeConfig);
+  };
+  config.onStart = createOnStart(config.onStart, wrapped);
 
   const distributionPath = getDistributionPath();
   log(`[status.spawn] Using distribution path: ${distributionPath}`);
-  proc.spawn(
+  const child = proc.spawn(
       'node',
       [distributionPath, '--config', globalThis.distribution.util.serialize(config)],
-      {detached: true, stdio: 'inherit'},
+      {detached: false, stdio: 'ignore'},
   );
+  child.unref();
+  child.once('error', (error) => wrapped(error));
+  child.once('exit', (code, signal) => {
+    wrapped(new Error(
+        `status.spawn: child exited before startup (code=${code}, signal=${signal})`,
+    ));
+  });
 }
 
 /**
@@ -145,12 +172,23 @@ function spawn(configuration, callback) {
  */
 function stop(callback) {
   const log = require('../util/log.js');
-  log('[status.stop] Shutting down node');
-  if (globalThis.distribution.node.server) {
-    globalThis.distribution.node.server.close();
+  if (typeof callback !== 'function' && typeof arguments[1] === 'function') {
+    callback = arguments[1];
   }
-  process.nextTick(() => process.exit(0));
-  callback(null, globalThis.distribution.node.config);
+  log('[status.stop] Shutting down node');
+  const {ip, port} = globalThis.distribution.node.config || {};
+  const finish = () => {
+    if (typeof callback === 'function') {
+      callback(null, {ip, port});
+    }
+    process.nextTick(() => process.exit(0));
+  };
+  if (globalThis.distribution.node.server &&
+      typeof globalThis.distribution.node.server.close === 'function') {
+    globalThis.distribution.node.server.close(() => finish());
+    return;
+  }
+  finish();
 }
 
 module.exports = {get, spawn, stop};
