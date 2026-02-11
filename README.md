@@ -173,3 +173,25 @@ My implementation comprises 4 major software components (the serializer, deseria
 _Correctness_: I wrote 5 student tests and 5 scenarios; these tests take under one second to execute. The test suite covers objects with nested structures, arrays, functions, dates, errors, and primitive base types, ensuring that both simple and complex values are correctly serialized and deserialized.
 
 _Performance_: The latency of various subsystems is described in the `"latency"` portion of package.json. The characteristics of my development machines are summarized in the `"dev"` portion of package.json.
+
+# M2: Actors and Remote Procedure Calls (RPC)
+
+## Summary
+
+> Summarize your implementation, including key challenges you encountered. Remember to update the `report` section of the `package.json` file with the total number of hours it took you to complete each task of M2 (`hours`) and the lines of code per task.
+
+My implementation comprises 5 software components (local `comm`, `node`, `routes`, `status`, and `util/wire`), totaling ~800 lines of code. Key challenges included building a reliable HTTP transport layer with clear error paths and single-callback semantics, which I solved with strict input validation and a guarded callback wrapper; correctly dispatching to services across groups and ensuring method lookup behaved consistently, solved by centralizing service registration in `routes` and normalizing arguments before invocation; and making RPC stubs portable and uniquely identifiable, solved by registering generated methods in a dedicated `__rpc__` service and embedding their owner/ID into a custom `toString` stub.
+
+## Correctness & Performance Characterization
+
+> Describe how you characterized the correctness and performance of your implementation
+
+_Correctness_: I wrote 10 student tests; these tests take under 1 second to execute locally.
+
+_Performance_: I characterized the performance of comm and RPC by sending 1000 service requests in a tight loop. Average throughput and latency is recorded in `package.json`.
+
+## Key Feature
+
+> How would you explain the implementation of `createRPC` to someone who has no background in computer science — i.e., with the minimum jargon possible?
+
+`createRPC` turns a normal function into a “remote button.” When you press the button, it packages your inputs and sends them to the machine that owns the original function. That machine runs the function and sends back the answer, and then your callback is called with the result.
