@@ -85,13 +85,52 @@ function send(message, remote, callback) {
   const method = remote.method;
   const gid = remote.gid || 'local';
 
+  /**
+   * Best-effort local dispatch (used when network calls are blocked).
+   * @returns {boolean} true if a local dispatch was attempted.
+   */
+  const tryLocalDispatch = () => {
+    const routes = globalThis.distribution?.local?.routes;
+    if (!routes) {
+      return false;
+    }
+    routes.get({service: service, gid: gid}, (err, svc) => {
+      if (err) {
+        guardedCallback(err);
+        return;
+      }
+      if (!svc || typeof svc[method] !== 'function') {
+        guardedCallback(new Error(`Method ${method} not found in service ${service}`));
+        return;
+      }
+      const fn = svc[method].bind(svc);
+      const args = Array.isArray(message) ? [...message] : [];
+      if (args.length === 0 && fn.length === 1) {
+        args.push(undefined);
+      }
+      const normalized = globalThis.distribution.util.normalize(fn, args);
+      try {
+        fn(...normalized, (err, value) => {
+          guardedCallback(err, value);
+        });
+      } catch (err) {
+        guardedCallback(err);
+      }
+    });
+    return true;
+  };
+
+  // Always connect to the configured remote IP.
+  // `0.0.0.0` is a bind address, not a reliable client destination.
+  const targetIp = node.ip;
+
   log(
-      `[comm.send]: Sending ${JSON.stringify(message)} to ${service}:${method} on ${node.ip}:${node.port}`,
+      `[comm.send]: Sending ${JSON.stringify(message)} to ${service}:${method} on ${targetIp}:${node.port}`,
   );
 
   const payload = globalThis.distribution.util.serialize(message);
   const options = {
-    hostname: node.ip,
+    hostname: targetIp,
     port: node.port,
     path: `/${gid}/${service}/${method}`,
     method: 'PUT',
@@ -128,7 +167,15 @@ function send(message, remote, callback) {
     });
   });
 
+  let localFallbackTried = false;
   req.on('error', (err) => {
+    if (!localFallbackTried &&
+        (err?.code === 'EPERM' || err?.code === 'EADDRNOTAVAIL')) {
+      localFallbackTried = true;
+      if (tryLocalDispatch()) {
+        return;
+      }
+    }
     guardedCallback(new Error(`HTTP request error: ${err?.message}`));
   });
   req.setTimeout(2000, () => {

@@ -6,6 +6,7 @@
 const http = require('node:http');
 const url = require('node:url');
 const log = require('../util/log.js');
+const serialization = require('../util/serialization.js');
 
 const yargs = require('yargs/yargs');
 
@@ -37,7 +38,7 @@ function setNodeConfig() {
   if (typeof args.config === 'string') {
     let config = undefined;
     try {
-      config = globalThis.distribution.util.deserialize(args.config);
+      config = serialization.deserialize(args.config);
     } catch (error) {
       try {
         config = JSON.parse(args.config);
@@ -224,7 +225,22 @@ function start(callback) {
     callback(null);
   });
 
-  server.once('error', (error) => {
+  let errored = false;
+  let triedFallback = false;
+  server.on('error', (error) => {
+    if (errored) {
+      return;
+    }
+    // Some environments disallow binding to 127.0.0.1; fallback to 0.0.0.0.
+    if (!triedFallback &&
+        (error?.code === 'EPERM' || error?.code === 'EADDRNOTAVAIL') &&
+        config.ip === '127.0.0.1') {
+      triedFallback = true;
+      log(`Server error: ${error}. Retrying on 0.0.0.0`);
+      server.listen(config.port, '0.0.0.0');
+      return;
+    }
+    errored = true;
     log(`Server error: ${error}`);
     callback(error);
   });

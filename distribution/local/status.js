@@ -103,11 +103,7 @@ function spawn(configuration, callback) {
     }
     const groups = globalThis.distribution?.local?.groups;
     if (groups && typeof groups.add === 'function') {
-      groups.add('all', nodeConfig, (e) => {
-        if (e) {
-          done(e);
-          return;
-        }
+      groups.add('all', nodeConfig, () => {
         done(null, nodeConfig);
       });
       return;
@@ -115,53 +111,53 @@ function spawn(configuration, callback) {
     done(null, nodeConfig);
   };
 
-  const createOnStart = (onStart, cb) => {
+  const createOnStart = (onStart, callbackOnParent) => {
     const callbackRPC = globalThis.distribution.util.wire.createRPC(
-        globalThis.distribution.util.wire.toAsync(cb),
+        globalThis.distribution.util.wire.toAsync(callbackOnParent),
     );
-    const body = `
-      return function (e) {
-        let onStart = ${onStart.toString()};
-        let callbackRPC = ${callbackRPC.toString()};
-        if (e) {
-          callbackRPC(e, null, () => {});
+    const source = `
+      return function (error) {
+        const onStart = ${onStart.toString()};
+        const callbackRPC = ${callbackRPC.toString()};
+        if (error) {
+          callbackRPC(error, null, () => {});
           return;
         }
         try {
           onStart();
-          const startedConfig = globalThis.distribution.node.config || {};
-          callbackRPC(null, {
-            ip: startedConfig.ip,
-            port: startedConfig.port,
-          }, () => {});
-        } catch (err) {
-          callbackRPC(err, null, () => {});
+          callbackRPC(null, globalThis.distribution.node.config, () => {});
+        } catch (e) {
+          callbackRPC(e, null, () => {});
         }
       };
     `;
-    return new Function(body)();
+    return new Function(source)();
   };
 
-  const timeout = setTimeout(() => {
-    onSpawned(new Error(`status.spawn: timeout while starting node ${config.ip}:${config.port}`));
-  }, 3000);
-  const wrapped = (err, nodeConfig) => {
-    clearTimeout(timeout);
-    onSpawned(err, nodeConfig);
-  };
-  config.onStart = createOnStart(config.onStart, wrapped);
+  config.onStart = createOnStart(config.onStart, onSpawned);
 
   const distributionPath = getDistributionPath();
   log(`[status.spawn] Using distribution path: ${distributionPath}`);
   const child = proc.spawn(
-      'node',
+      process.execPath,
       [distributionPath, '--config', globalThis.distribution.util.serialize(config)],
-      {detached: false, stdio: 'ignore'},
+      {detached: true, stdio: 'ignore'},
   );
   child.unref();
-  child.once('error', (error) => wrapped(error));
+
+  const timeout = setTimeout(() => {
+    done(new Error(`status.spawn: timeout while starting node ${config.ip}:${config.port}`));
+  }, 5000);
+  const clearAndDone = (err) => {
+    clearTimeout(timeout);
+    done(err);
+  };
+
+  child.once('error', (error) => {
+    clearAndDone(error);
+  });
   child.once('exit', (code, signal) => {
-    wrapped(new Error(
+    clearAndDone(new Error(
         `status.spawn: child exited before startup (code=${code}, signal=${signal})`,
     ));
   });
@@ -177,11 +173,14 @@ function stop(callback) {
   }
   log('[status.stop] Shutting down node');
   const {ip, port} = globalThis.distribution.node.config || {};
+  const shouldExitProcess = process.argv.some((arg) => /(^|\/)distribution\.js$/.test(arg));
   const finish = () => {
     if (typeof callback === 'function') {
       callback(null, {ip, port});
     }
-    process.nextTick(() => process.exit(0));
+    if (shouldExitProcess) {
+      process.nextTick(() => process.exit(0));
+    }
   };
   if (globalThis.distribution.node.server &&
       typeof globalThis.distribution.node.server.close === 'function') {
