@@ -195,3 +195,23 @@ _Performance_: I characterized the performance of comm and RPC by sending 1000 s
 > How would you explain the implementation of `createRPC` to someone who has no background in computer science — i.e., with the minimum jargon possible?
 
 `createRPC` turns a normal function into a “remote button.” When you press the button, it packages your inputs and sends them to the machine that owns the original function. That machine runs the function and sends back the answer, and then your callback is called with the result.
+
+# M3: Node Groups & Gossip Protocols
+
+## Summary
+
+> Summarize your implementation, including key challenges you encountered. Remember to update the `report` section of the `package.json` file with the total number of hours it took you to complete each task of M3 (`hours`) and the lines of code per task.
+
+My implementation comprises `<number>` new software components, totaling `<number>` added lines of code over the previous implementation. Key challenges included `<1, 2, 3 + how you solved them>`.
+
+## Correctness & Performance Characterization
+
+> Describe how you characterized the correctness and performance of your implementation
+
+_Correctness_ -- number of tests and time they take.
+
+_Performance_ -- spawn times (all students) and gossip (lab/ec-only).
+
+## Key Feature
+
+> What is the point of having a gossip protocol? Why doesn't a node just send the message to _all_ other nodes in its group?
