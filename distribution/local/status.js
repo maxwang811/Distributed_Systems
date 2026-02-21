@@ -163,20 +163,25 @@ function stop(callback) {
   log('[status.stop] Shutting down node');
   const {ip, port} = globalThis.distribution.node.config || {};
   const shouldExitProcess = process.argv.some((arg) => /(^|\/)distribution\.js$/.test(arg));
-  const finish = () => {
-    if (typeof callback === 'function') {
-      callback(null, {ip, port});
-    }
-    if (shouldExitProcess) {
-      process.nextTick(() => process.exit(0));
-    }
-  };
-  if (globalThis.distribution.node.server &&
-      typeof globalThis.distribution.node.server.close === 'function') {
-    globalThis.distribution.node.server.close(() => finish());
+  const server = globalThis.distribution.node.server;
+
+  // Respond first so RPC callers don't deadlock waiting on server.close().
+  if (typeof callback === 'function') {
+    callback(null, {ip, port});
+  }
+
+  if (server && typeof server.close === 'function') {
+    server.close(() => {
+      if (shouldExitProcess) {
+        process.nextTick(() => process.exit(0));
+      }
+    });
     return;
   }
-  finish();
+
+  if (shouldExitProcess) {
+    process.nextTick(() => process.exit(0));
+  }
 }
 
 module.exports = {get, spawn, stop};

@@ -84,6 +84,13 @@ function send(message, remote, callback) {
   const service = remote.service;
   const method = remote.method;
   const gid = remote.gid || 'local';
+  const selfNode = globalThis.distribution?.node?.config;
+  const isSelfTarget = Boolean(
+      selfNode &&
+      node &&
+      selfNode.ip === node.ip &&
+      selfNode.port === node.port,
+  );
 
   const tryLocalDispatch = () => {
     const routes = globalThis.distribution?.local?.routes;
@@ -121,6 +128,10 @@ function send(message, remote, callback) {
   log(
       `[comm.send]: Sending ${JSON.stringify(message)} to ${service}:${method} on ${targetIp}:${node.port}`,
   );
+
+  if (isSelfTarget && tryLocalDispatch()) {
+    return;
+  }
 
   const payload = globalThis.distribution.util.serialize(message);
   const options = {
@@ -164,7 +175,9 @@ function send(message, remote, callback) {
   let localFallbackTried = false;
   req.on('error', (err) => {
     if (!localFallbackTried &&
-        (err?.code === 'EPERM' || err?.code === 'EADDRNOTAVAIL')) {
+        (err?.code === 'EPERM' ||
+         err?.code === 'EADDRNOTAVAIL' ||
+         (isSelfTarget && err?.code === 'ECONNREFUSED'))) {
       localFallbackTried = true;
       if (tryLocalDispatch()) {
         return;
