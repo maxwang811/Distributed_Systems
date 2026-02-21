@@ -17,23 +17,38 @@ function get(configuration, callback) {
   }
 
   let serviceName;
+  let gid = 'local';
   if (typeof configuration === 'string') {
     serviceName = configuration;
   } else if (typeof configuration === 'object' &&
       typeof configuration.service === 'string') {
-    if (configuration.gid && configuration.gid !== 'local') {
-      return callback(new Error('routes.get: invalid gid'));
-    }
     serviceName = configuration.service;
+    if (configuration.gid !== undefined) {
+      if (typeof configuration.gid !== 'string' || configuration.gid.length === 0) {
+        return callback(new Error('routes.get: invalid gid'));
+      }
+      gid = configuration.gid;
+    }
   } else {
     return callback(new Error('routes.get: invalid configuration'));
   }
 
-  if (!routeTable.has(serviceName)) {
-    return callback(new Error(`routes.get: unknown service "${serviceName}"`));
+  if (gid === 'local') {
+    if (!routeTable.has(serviceName)) {
+      return callback(new Error(`routes.get: unknown service "${serviceName}"`));
+    }
+    return callback(null, routeTable.get(serviceName));
   }
 
-  return callback(null, routeTable.get(serviceName));
+  const dist = globalThis.distribution;
+  const group = dist && dist[gid];
+  if (!group || typeof group !== 'object') {
+    return callback(new Error(`routes.get: unknown gid "${gid}"`));
+  }
+  if (!group[serviceName]) {
+    return callback(new Error(`routes.get: unknown service "${serviceName}"`));
+  }
+  return callback(null, group[serviceName]);
 }
 
 /**

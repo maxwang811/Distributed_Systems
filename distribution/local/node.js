@@ -89,10 +89,11 @@ function start(callback) {
 
 
     const [,
-      gid,
+      gidRaw,
       serviceName,
       methodName,
     ] = url.parse(req.url).pathname.split('/');
+    const gid = gidRaw || 'local';
 
     log(
         `[server] got request ${gid} ${serviceName}:${methodName} from ${req.socket.remoteAddress}`,

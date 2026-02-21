@@ -138,28 +138,17 @@ function spawn(configuration, callback) {
 
   const distributionPath = getDistributionPath();
   log(`[status.spawn] Using distribution path: ${distributionPath}`);
-  const child = proc.spawn(
-      process.execPath,
-      [distributionPath, '--config', globalThis.distribution.util.serialize(config)],
-      {detached: true, stdio: 'ignore'},
-  );
-  child.unref();
-
-  const timeout = setTimeout(() => {
-    done(new Error(`status.spawn: timeout while starting node ${config.ip}:${config.port}`));
-  }, 5000);
-  const clearAndDone = (err) => {
-    clearTimeout(timeout);
-    done(err);
-  };
+  const child = proc.spawn(process.execPath, [
+    distributionPath,
+    '--config',
+    globalThis.distribution.util.serialize(config),
+  ], {
+    detached: true,
+    stdio: 'inherit',
+  });
 
   child.once('error', (error) => {
-    clearAndDone(error);
-  });
-  child.once('exit', (code, signal) => {
-    clearAndDone(new Error(
-        `status.spawn: child exited before startup (code=${code}, signal=${signal})`,
-    ));
+    done(error);
   });
 }
 

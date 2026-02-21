@@ -172,7 +172,7 @@ function send(message, remote, callback) {
     }
     guardedCallback(new Error(`HTTP request error: ${err?.message}`));
   });
-  req.setTimeout(2000, () => {
+  req.setTimeout(500, () => {
     req.destroy(new Error('HTTP request timeout'));
   });
 

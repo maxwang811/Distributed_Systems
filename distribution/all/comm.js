@@ -20,8 +20,7 @@
  * @returns {Comm}
  */
 function comm(config) {
-  const context = {};
-  context.gid = config.gid || 'all';
+  const context = {gid: config.gid || 'all'};
 
   /**
    * @param {any[]} message
@@ -29,7 +28,58 @@ function comm(config) {
    * @param {Callback} callback
    */
   function send(message, configuration, callback) {
-    callback(new Error('comm.send not implemented'));
+    const done = typeof callback === 'function' ? callback : () => {};
+    const groups = globalThis.distribution?.local?.groups;
+    const localComm = globalThis.distribution?.local?.comm;
+
+    if (!groups || typeof groups.get !== 'function' ||
+        !localComm || typeof localComm.send !== 'function') {
+      done(new Error('comm.send: local services unavailable'));
+      return;
+    }
+
+    groups.get(context.gid, (groupError, group) => {
+      if (groupError) {
+        done(groupError);
+        return;
+      }
+
+      const members = Object.entries(group || {});
+      if (members.length === 0) {
+        done(new Error(`comm.send: group "${context.gid}" has no members`));
+        return;
+      }
+
+      /** @type {Object.<string, Error>} */
+      const errors = {};
+      /** @type {Object.<string, any>} */
+      const values = {};
+      let pending = members.length;
+
+      const finish = () => {
+        pending -= 1;
+        if (pending === 0) {
+          done(errors, values);
+        }
+      };
+
+      members.forEach(([sid, node]) => {
+        /** @type {Target & { node?: any }} */
+        const remote = {
+          ...configuration,
+          gid: configuration?.gid || 'local',
+          node,
+        };
+        localComm.send(message, remote, (error, value) => {
+          if (error) {
+            errors[sid] = error;
+          } else {
+            values[sid] = value;
+          }
+          finish();
+        });
+      });
+    });
   }
 
   return {send};

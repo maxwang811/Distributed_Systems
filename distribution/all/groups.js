@@ -20,12 +20,38 @@ function groups(config) {
   const context = {gid: config.gid || 'all'};
 
   /**
+   * @param {string} method
+   * @param {any[]} args
+   * @param {Callback} callback
+   */
+  function dispatch(method, args, callback) {
+    const done = typeof callback === 'function' ? callback : () => {};
+    const groupComm = globalThis.distribution?.[context.gid]?.comm;
+    if (!groupComm || typeof groupComm.send !== 'function') {
+      done(new Error(`groups.${method}: comm unavailable for group "${context.gid}"`));
+      return;
+    }
+
+    const remote = {service: 'groups', method};
+    groupComm.send(args, remote, (errors, values) => {
+      if (errors instanceof Error) {
+        done(errors);
+        return;
+      }
+      done(
+          errors && typeof errors === 'object' ? errors : {},
+          values && typeof values === 'object' ? values : {},
+      );
+    });
+  }
+
+  /**
    * @param {Config | string} config
    * @param {Object.<string, Node>} group
    * @param {Callback} callback
    */
   function put(config, group, callback) {
-    return callback(new Error('groups.put not implemented'));
+    dispatch('put', [config, group], callback);
   }
 
   /**
@@ -33,7 +59,7 @@ function groups(config) {
    * @param {Callback} callback
    */
   function del(name, callback) {
-    return callback(new Error('groups.del not implemented'));
+    dispatch('del', [name], callback);
   }
 
   /**
@@ -41,7 +67,7 @@ function groups(config) {
    * @param {Callback} callback
    */
   function get(name, callback) {
-    return callback(new Error('groups.get not implemented'));
+    dispatch('get', [name], callback);
   }
 
   /**
@@ -50,7 +76,7 @@ function groups(config) {
    * @param {Callback} callback
    */
   function add(name, node, callback) {
-    return callback(new Error('groups.add not implemented'));
+    dispatch('add', [name, node], callback);
   }
 
   /**
@@ -59,7 +85,7 @@ function groups(config) {
    * @param {Callback} callback
    */
   function rem(name, node, callback) {
-    return callback(new Error('groups.rem not implemented'));
+    dispatch('rem', [name, node], callback);
   }
 
   return {
