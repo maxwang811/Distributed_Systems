@@ -17,7 +17,8 @@
   },
   "scripts": {
     "test": "./scripts/test.sh",
-    "lint": "./scripts/lint.sh"
+    "lint": "./scripts/lint.sh",
+    "perf:m3": "node ./scripts/m3-perf.js"
   },
   "author": "Mohan Wang",
   "license": "ISC",
@@ -66,19 +67,19 @@
     },
     {
       "milestone": "M3",
-      "hours": 999,
-      "loc": 999,
+      "hours": 20,
+      "loc": 350,
       "dev": {
-        "cpu-no": 999,
-        "mem-gb": 999,
-        "ssd-gb": 999
+        "cpu-no": 8,
+        "mem-gb": 8,
+        "ssd-gb": 512
       },
       "throughput": {
-        "dev": [],
+        "dev": [12.123770354320717, 1139.1156880880712],
         "aws": []
       },
       "latency": {
-        "dev": [],
+        "dev": [79.1313251, 1.6011291500000002],
         "aws": []
       },
       "dloc": -99
