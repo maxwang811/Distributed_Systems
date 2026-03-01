@@ -75,7 +75,7 @@ function get(configuration, callback) {
         return callback(readDirError);
       }
 
-      const keys = files.map(decodeComponent);
+      const keys = files.map(decodeComponent).sort();
       return callback(null, keys);
     });
   }

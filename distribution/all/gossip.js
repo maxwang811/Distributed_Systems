@@ -170,6 +170,10 @@ function gossip(config) {
         // Best-effort scheduler; callback errors are isolated from the timer loop.
       }
     }, period);
+    // Background gossip timers should not keep test or CLI processes alive.
+    if (typeof timer.unref === 'function') {
+      timer.unref();
+    }
 
     intervalTable.set(intervalID, timer);
     done(null, intervalID);

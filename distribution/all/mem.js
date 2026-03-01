@@ -190,7 +190,7 @@ function listKeys(gid, callback) {
       }
     });
 
-    callback(errors && typeof errors === 'object' ? errors : {}, [...uniqueKeys]);
+    callback(errors && typeof errors === 'object' ? errors : {}, [...uniqueKeys].sort());
   });
 }
 
@@ -281,23 +281,24 @@ function reconfigure(service, context, previousGroup, callback) {
     const idUtil = globalThis.distribution.util.id;
     const oldNids = priorNodes.map((node) => idUtil.getNID(node));
     const newNids = currentNodes.map((node) => idUtil.getNID(node));
-    const allKeys = new Set();
+    listKeysFromNodes(service, context.gid, priorNodes, (listError, keys) => {
+      if (listError instanceof Error) {
+        callback(listError);
+        return;
+      }
 
-    let pending = priorNodes.length;
-    if (pending === 0) {
-      callback(null, []);
-      return;
-    }
+      const relocationKeys = (Array.isArray(keys) ? keys : []).filter((key) => {
+        const kid = idUtil.getID(key);
+        return context.hash(kid, oldNids) !== context.hash(kid, newNids);
+      });
 
-    const finishScanning = () => {
-      const keys = [...allKeys];
-      if (keys.length === 0) {
+      if (relocationKeys.length === 0) {
         callback(null, []);
         return;
       }
 
       const moved = [];
-      let remaining = keys.length;
+      let remaining = relocationKeys.length;
       const doneMove = (error) => {
         if (remaining < 0) {
           return;
@@ -313,15 +314,10 @@ function reconfigure(service, context, previousGroup, callback) {
         }
       };
 
-      keys.forEach((key) => {
+      relocationKeys.forEach((key) => {
         const kid = idUtil.getID(key);
         const oldNid = context.hash(kid, oldNids);
         const newNid = context.hash(kid, newNids);
-        if (oldNid === newNid) {
-          doneMove(null);
-          return;
-        }
-
         const sourceNode = priorNodes.find((node) => idUtil.getNID(node) === oldNid);
         const destinationNode = currentNodes.find((node) => idUtil.getNID(node) === newNid);
         if (!sourceNode || !destinationNode) {
@@ -362,22 +358,58 @@ function reconfigure(service, context, previousGroup, callback) {
             },
         );
       });
-    };
-
-    priorNodes.forEach((node) => {
-      globalThis.distribution.local.comm.send(
-          [{gid: context.gid, key: null}],
-          {node, service, method: 'get'},
-          (error, keys) => {
-            if (!error && Array.isArray(keys)) {
-              keys.forEach((key) => allKeys.add(key));
-            }
-            pending -= 1;
-            if (pending === 0) {
-              finishScanning();
-            }
-          },
-      );
     });
+  });
+}
+
+/**
+ * @param {string} service
+ * @param {string} gid
+ * @param {Node[]} nodes
+ * @param {Callback} callback
+ */
+function listKeysFromNodes(service, gid, nodes, callback) {
+  if (nodes.length === 0) {
+    callback(null, []);
+    return;
+  }
+
+  const uniqueKeys = new Set();
+  let remaining = nodes.length;
+  let settled = false;
+
+  const finish = (error) => {
+    if (settled) {
+      return;
+    }
+    if (error) {
+      settled = true;
+      callback(error);
+      return;
+    }
+
+    remaining -= 1;
+    if (remaining === 0) {
+      settled = true;
+      callback(null, [...uniqueKeys].sort());
+    }
+  };
+
+  nodes.forEach((node) => {
+    globalThis.distribution.local.comm.send(
+        [{gid, key: null}],
+        {node, service, method: 'get'},
+        (error, keys) => {
+          if (error) {
+            finish(error);
+            return;
+          }
+
+          if (Array.isArray(keys)) {
+            keys.forEach((key) => uniqueKeys.add(key));
+          }
+          finish(null);
+        },
+    );
   });
 }

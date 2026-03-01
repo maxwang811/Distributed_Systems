@@ -26,6 +26,8 @@ function store(config) {
     subset: config.subset,
   };
 
+  initializeDetection(context);
+
   /**
    * @param {SimpleConfig} configuration
    * @param {Callback} callback
@@ -126,6 +128,136 @@ function store(config) {
 
 module.exports = store;
 
+/** @type {Map<string, {lastGroup: Object.<string, Node>, lastCount: number, inflight: boolean, pendingPrevious: Object.<string, Node> | null, initialized: boolean}>} */
+const detectionTable = new Map();
+const DEFAULT_BEACON_PERIOD_MS = 250;
+
+/**
+ * @param {{gid: string, hash: Hasher}} context
+ */
+function initializeDetection(context) {
+  if (detectionTable.has(context.gid)) {
+    return;
+  }
+
+  detectionTable.set(context.gid, {
+    lastGroup: {},
+    lastCount: 0,
+    inflight: false,
+    pendingPrevious: null,
+    initialized: false,
+  });
+
+  const groups = globalThis.distribution?.local?.groups;
+  if (!groups || typeof groups.get !== 'function') {
+    return;
+  }
+
+  groups.get(context.gid, (error, group) => {
+    if (!error) {
+      const runtime = detectionTable.get(context.gid);
+      runtime.lastGroup = cloneGroup(group);
+      runtime.lastCount = Object.keys(runtime.lastGroup).length;
+      runtime.initialized = true;
+    }
+  });
+
+  if (typeof groups.registerUpcall === 'function') {
+    groups.registerUpcall(context.gid, (event) => {
+      handleDetectedChange(context, event.previous, event.current);
+    }, () => {});
+  }
+
+  const gossip = require('./gossip.js')(context);
+  if (!gossip || typeof gossip.at !== 'function') {
+    return;
+  }
+
+  gossip.at(DEFAULT_BEACON_PERIOD_MS, () => {
+    groups.get(context.gid, (error, group) => {
+      if (error) {
+        return;
+      }
+
+      const runtime = detectionTable.get(context.gid);
+      const current = cloneGroup(group);
+      const currentCount = Object.keys(current).length;
+      if (!runtime.initialized) {
+        runtime.lastGroup = current;
+        runtime.lastCount = currentCount;
+        runtime.initialized = true;
+        return;
+      }
+
+      if (currentCount !== runtime.lastCount) {
+        handleDetectedChange(context, runtime.lastGroup, current);
+      } else {
+        runtime.lastGroup = current;
+        runtime.lastCount = currentCount;
+      }
+    });
+  }, () => {});
+}
+
+/**
+ * @param {{gid: string, hash: Hasher}} context
+ * @param {Object.<string, Node> | undefined} previousGroup
+ * @param {Object.<string, Node> | undefined} currentGroup
+ */
+function handleDetectedChange(context, previousGroup, currentGroup) {
+  const runtime = detectionTable.get(context.gid);
+  if (!runtime) {
+    return;
+  }
+
+  const previous = cloneGroup(previousGroup || runtime.lastGroup);
+  const current = cloneGroup(currentGroup);
+  const previousCount = Object.keys(previous).length;
+  const currentCount = Object.keys(current).length;
+
+  runtime.lastGroup = current;
+  runtime.lastCount = currentCount;
+  runtime.initialized = true;
+
+  if (previousCount === currentCount || previousCount === 0) {
+    return;
+  }
+
+  scheduleReconfiguration(context, previous);
+}
+
+/**
+ * @param {{gid: string, hash: Hasher}} context
+ * @param {Object.<string, Node>} previousGroup
+ */
+function scheduleReconfiguration(context, previousGroup) {
+  const runtime = detectionTable.get(context.gid);
+  if (!runtime) {
+    return;
+  }
+
+  if (runtime.inflight) {
+    if (!runtime.pendingPrevious) {
+      runtime.pendingPrevious = cloneGroup(previousGroup);
+    }
+    return;
+  }
+
+  runtime.inflight = true;
+  reconfigure('store', context, previousGroup, (error) => {
+    runtime.inflight = false;
+    if (error) {
+      return;
+    }
+
+    if (runtime.pendingPrevious) {
+      const queued = runtime.pendingPrevious;
+      runtime.pendingPrevious = null;
+      scheduleReconfiguration(context, queued);
+    }
+  });
+}
+
 /**
  * @param {SimpleConfig} configuration
  * @param {string} defaultGid
@@ -179,7 +311,7 @@ function listKeys(gid, callback) {
       }
     });
 
-    callback(errors && typeof errors === 'object' ? errors : {}, [...uniqueKeys]);
+    callback(errors && typeof errors === 'object' ? errors : {}, [...uniqueKeys].sort());
   });
 }
 
@@ -217,6 +349,14 @@ function getGroup(gid, callback) {
     }
     callback(null, group || {});
   });
+}
+
+/**
+ * @param {Object.<string, Node> | undefined} group
+ * @returns {Object.<string, Node>}
+ */
+function cloneGroup(group) {
+  return group && typeof group === 'object' ? {...group} : {};
 }
 
 /**
@@ -270,23 +410,24 @@ function reconfigure(service, context, previousGroup, callback) {
     const idUtil = globalThis.distribution.util.id;
     const oldNids = priorNodes.map((node) => idUtil.getNID(node));
     const newNids = currentNodes.map((node) => idUtil.getNID(node));
-    const allKeys = new Set();
+    listKeysFromNodes(service, context.gid, priorNodes, (listError, keys) => {
+      if (listError instanceof Error) {
+        callback(listError);
+        return;
+      }
 
-    let pending = priorNodes.length;
-    if (pending === 0) {
-      callback(null, []);
-      return;
-    }
+      const relocationKeys = (Array.isArray(keys) ? keys : []).filter((key) => {
+        const kid = idUtil.getID(key);
+        return context.hash(kid, oldNids) !== context.hash(kid, newNids);
+      });
 
-    const finishScanning = () => {
-      const keys = [...allKeys];
-      if (keys.length === 0) {
+      if (relocationKeys.length === 0) {
         callback(null, []);
         return;
       }
 
       const moved = [];
-      let remaining = keys.length;
+      let remaining = relocationKeys.length;
       const doneMove = (error) => {
         if (remaining < 0) {
           return;
@@ -302,15 +443,10 @@ function reconfigure(service, context, previousGroup, callback) {
         }
       };
 
-      keys.forEach((key) => {
+      relocationKeys.forEach((key) => {
         const kid = idUtil.getID(key);
         const oldNid = context.hash(kid, oldNids);
         const newNid = context.hash(kid, newNids);
-        if (oldNid === newNid) {
-          doneMove(null);
-          return;
-        }
-
         const sourceNode = priorNodes.find((node) => idUtil.getNID(node) === oldNid);
         const destinationNode = currentNodes.find((node) => idUtil.getNID(node) === newNid);
         if (!sourceNode || !destinationNode) {
@@ -351,22 +487,58 @@ function reconfigure(service, context, previousGroup, callback) {
             },
         );
       });
-    };
-
-    priorNodes.forEach((node) => {
-      globalThis.distribution.local.comm.send(
-          [{gid: context.gid, key: null}],
-          {node, service, method: 'get'},
-          (error, keys) => {
-            if (!error && Array.isArray(keys)) {
-              keys.forEach((key) => allKeys.add(key));
-            }
-            pending -= 1;
-            if (pending === 0) {
-              finishScanning();
-            }
-          },
-      );
     });
+  });
+}
+
+/**
+ * @param {string} service
+ * @param {string} gid
+ * @param {Node[]} nodes
+ * @param {Callback} callback
+ */
+function listKeysFromNodes(service, gid, nodes, callback) {
+  if (nodes.length === 0) {
+    callback(null, []);
+    return;
+  }
+
+  const uniqueKeys = new Set();
+  let remaining = nodes.length;
+  let settled = false;
+
+  const finish = (error) => {
+    if (settled) {
+      return;
+    }
+    if (error) {
+      settled = true;
+      callback(error);
+      return;
+    }
+
+    remaining -= 1;
+    if (remaining === 0) {
+      settled = true;
+      callback(null, [...uniqueKeys].sort());
+    }
+  };
+
+  nodes.forEach((node) => {
+    globalThis.distribution.local.comm.send(
+        [{gid, key: null}],
+        {node, service, method: 'get'},
+        (error, keys) => {
+          if (error) {
+            finish(error);
+            return;
+          }
+
+          if (Array.isArray(keys)) {
+            keys.forEach((key) => uniqueKeys.add(key));
+          }
+          finish(null);
+        },
+    );
   });
 }

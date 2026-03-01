@@ -52,8 +52,6 @@ function findMovingKey() {
     if (before !== after) {
       return {
         key,
-        oldGroup: {...group},
-        beforeNode: findNodeByNid(group, before),
         afterNode: findNodeByNid(nextGroup, after),
       };
     }
@@ -71,16 +69,23 @@ test('(15 pts) detect the need to reconfigure', (done) => {
     await settle((callback) => distribution.local.groups.rem(gid, id.getSID(n3), callback));
     await settle((callback) => distribution[gid].groups.rem(gid, id.getSID(n3), callback));
 
-    const staleRead = await settle(
-        (callback) => distribution[gid].store.get(moving.key, callback),
-        true,
-    );
-    expect(staleRead.e).toBeTruthy();
-
-    await settle((callback) => distribution[gid].store.reconf(moving.oldGroup, callback));
-
-    const healthyRead = await settle((callback) => distribution[gid].store.get(moving.key, callback));
-    expect(healthyRead.v).toEqual(value);
+    await new Promise((resolve, reject) => {
+      const deadline = Date.now() + 2000;
+      const poll = () => {
+        distribution[gid].store.get(moving.key, (e, v) => {
+          if (!hasError(e) && JSON.stringify(v) === JSON.stringify(value)) {
+            resolve();
+            return;
+          }
+          if (Date.now() >= deadline) {
+            reject(e || new Error('store did not detect and complete reconfiguration'));
+            return;
+          }
+          setTimeout(poll, 100);
+        });
+      };
+      poll();
+    });
 
     const remoteValue = await settle((callback) => {
       distribution.local.comm.send(

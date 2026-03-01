@@ -156,6 +156,24 @@ test('(1 pts) student test', (done) => {
 
 test('(1 pts) student test', (done) => {
   (async () => {
+    const entries = [
+      [`${gidPrefix}_store_scan_1`, {n: 'a'}],
+      [`${gidPrefix}_store_scan_2`, {n: 'b'}],
+      [`${gidPrefix}_store_scan_3`, {n: 'c'}],
+    ];
+
+    for (const [key, value] of entries) {
+      await putValue(distribution[rendezvousGid].store, value, key);
+    }
+
+    const keys = await getValue(distribution[rendezvousGid].store, null);
+    expect(Array.isArray(keys)).toBe(true);
+    expect(keys).toEqual(expect.arrayContaining(entries.map(([key]) => key)));
+  })().then(() => done(), done);
+});
+
+test('(1 pts) student test', (done) => {
+  (async () => {
     const beforeGroup = {...reconfGroup};
     const moving = findMovingKey(id.naiveHash, beforeGroup, n3);
     const value = {kind: 'mem', route: 'reconf'};

@@ -43,6 +43,7 @@ function put(config, group, callback) {
   ensureDefaults();
 
   const gid = resolved.gid;
+  const previous = cloneGroup(groupTable.get(gid));
   groupTable.set(gid, group);
 
   // Keep the canonical "all" view synchronized with declared memberships.
@@ -61,6 +62,7 @@ function put(config, group, callback) {
     dist[gid] = setup(resolved);
   }
 
+  emitChange(gid, previous, groupTable.get(gid), 'put');
   return callback(null, group);
 }
 
@@ -120,10 +122,12 @@ function add(name, node, callback) {
   }
 
   const group = groupTable.get(name);
+  const previous = cloneGroup(group);
   const sid = getId().getSID(node);
   group[sid] = node;
   getOrCreateGroup('all')[sid] = node;
 
+  emitChange(name, previous, group, 'add');
   return callback(null, group);
 };
 
@@ -150,6 +154,7 @@ function rem(name, node, callback) {
   }
 
   const group = groupTable.get(name);
+  const previous = cloneGroup(group);
   if (Object.prototype.hasOwnProperty.call(group, node)) {
     if (groupTable.has('all')) {
       delete groupTable.get('all')[node];
@@ -157,13 +162,67 @@ function rem(name, node, callback) {
     delete group[node];
   }
   ensureBuiltinMembership(name, group);
+  emitChange(name, previous, group, 'rem');
   return callback(null, group);
 };
 
-module.exports = {get, put, del, add, rem};
+/**
+ * @param {string} gid
+ * @param {(event: {gid: string, previous: Object.<string, Node>, current: Object.<string, Node>, cause: string}) => void} handler
+ * @param {Callback} callback
+ */
+function registerUpcall(gid, handler, callback) {
+  const done = typeof callback === 'function' ? callback : () => {};
+  if (typeof gid !== 'string' || gid.length === 0) {
+    done(new Error('groups.registerUpcall: invalid group'));
+    return;
+  }
+  if (typeof handler !== 'function') {
+    done(new Error('groups.registerUpcall: invalid handler'));
+    return;
+  }
+
+  const upcallId = `${gid}:${Date.now()}:${Math.random()}`;
+  if (!upcallTable.has(gid)) {
+    upcallTable.set(gid, new Map());
+  }
+  upcallTable.get(gid).set(upcallId, handler);
+  done(null, upcallId);
+}
+
+/**
+ * @param {string} gid
+ * @param {string} upcallId
+ * @param {Callback} callback
+ */
+function unregisterUpcall(gid, upcallId, callback) {
+  const done = typeof callback === 'function' ? callback : () => {};
+  if (typeof gid !== 'string' || gid.length === 0) {
+    done(new Error('groups.unregisterUpcall: invalid group'));
+    return;
+  }
+  if (typeof upcallId !== 'string' || upcallId.length === 0) {
+    done(new Error('groups.unregisterUpcall: invalid upcall id'));
+    return;
+  }
+  if (!upcallTable.has(gid) || !upcallTable.get(gid).has(upcallId)) {
+    done(new Error(`groups.unregisterUpcall: unknown upcall "${upcallId}"`));
+    return;
+  }
+
+  upcallTable.get(gid).delete(upcallId);
+  if (upcallTable.get(gid).size === 0) {
+    upcallTable.delete(gid);
+  }
+  done(null, upcallId);
+}
+
+module.exports = {get, put, del, add, rem, registerUpcall, unregisterUpcall};
 
 /** @type {Map<string, Object.<string, Node>>} */
 const groupTable = new Map();
+/** @type {Map<string, Map<string, Function>>} */
+const upcallTable = new Map();
 
 function getId() {
   const dist = globalThis.distribution;
@@ -224,4 +283,38 @@ function getOrCreateGroup(name) {
     groupTable.set(name, {});
   }
   return groupTable.get(name);
+}
+
+/**
+ * @param {Object.<string, Node> | undefined} group
+ * @returns {Object.<string, Node>}
+ */
+function cloneGroup(group) {
+  return group && typeof group === 'object' ? {...group} : {};
+}
+
+/**
+ * @param {string} gid
+ * @param {Object.<string, Node>} previous
+ * @param {Object.<string, Node>} current
+ * @param {string} cause
+ */
+function emitChange(gid, previous, current, cause) {
+  if (!upcallTable.has(gid)) {
+    return;
+  }
+  const handlers = [...upcallTable.get(gid).values()];
+  const event = {
+    gid,
+    previous: cloneGroup(previous),
+    current: cloneGroup(current),
+    cause,
+  };
+  handlers.forEach((handler) => {
+    try {
+      handler(event);
+    } catch {
+      // Upcalls are best-effort and must not break group mutations.
+    }
+  });
 }

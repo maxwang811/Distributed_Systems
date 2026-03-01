@@ -55,7 +55,7 @@ function get(configuration, callback) {
 
   const table = getGroupTable(resolved.gid);
   if (resolved.key === null) {
-    return callback(null, Array.from(table.keys()));
+    return callback(null, Array.from(table.keys()).sort());
   }
 
   if (!table.has(resolved.key)) {
