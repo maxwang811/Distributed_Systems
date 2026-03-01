@@ -72,10 +72,46 @@ const naiveHash = (kid, nids) => {
 
 /** @type { Hasher } */
 const consistentHash = (kid, nids) => {
+  if (nids.length === 0) {
+    throw new Error('consistentHash: no nodes available');
+  }
+
+  const ring = [kid, ...nids]
+      .map((id) => ({id, num: idToNum(id)}))
+      .sort((a, b) => {
+        if (a.num < b.num) {
+          return -1;
+        }
+        if (a.num > b.num) {
+          return 1;
+        }
+        return 0;
+      });
+
+  const kidIndex = ring.findIndex((entry) => entry.id === kid);
+  const nextIndex = (kidIndex + 1) % ring.length;
+  return ring[nextIndex].id;
 };
 
 /** @type { Hasher } */
 const rendezvousHash = (kid, nids) => {
+  if (nids.length === 0) {
+    throw new Error('rendezvousHash: no nodes available');
+  }
+
+  const scores = nids
+      .map((nid) => ({nid, score: scoreRendezvous(kid, nid)}))
+      .sort((a, b) => {
+        if (a.score < b.score) {
+          return -1;
+        }
+        if (a.score > b.score) {
+          return 1;
+        }
+        return a.nid.localeCompare(b.nid);
+      });
+
+  return scores[scores.length - 1].nid;
 };
 
 module.exports = {
@@ -87,3 +123,15 @@ module.exports = {
   consistentHash,
   rendezvousHash,
 };
+
+/**
+ * @param {string} kid
+ * @param {string} nid
+ * @returns {bigint}
+ */
+function scoreRendezvous(kid, nid) {
+  const hash = crypto.createHash('sha256');
+  hash.update(kid);
+  hash.update(nid);
+  return idToNum(hash.digest('hex'));
+}

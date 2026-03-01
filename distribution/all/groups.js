@@ -38,8 +38,10 @@ function groups(config) {
         done(errors);
         return;
       }
+
+      const filteredErrors = filterErrors(method, errors);
       done(
-          errors && typeof errors === 'object' ? errors : {},
+          filteredErrors,
           values && typeof values === 'object' ? values : {},
       );
     });
@@ -94,3 +96,28 @@ function groups(config) {
 }
 
 module.exports = groups;
+
+/**
+ * Allow idempotent remote removals when a node never created a local record.
+ * @param {string} method
+ * @param {any} errors
+ * @returns {Object.<string, Error>}
+ */
+function filterErrors(method, errors) {
+  if (!errors || typeof errors !== 'object') {
+    return {};
+  }
+
+  /** @type {Object.<string, Error>} */
+  const filtered = {};
+  Object.entries(errors).forEach(([sid, error]) => {
+    const ignore = method === 'rem' &&
+      error instanceof Error &&
+      typeof error.message === 'string' &&
+      error.message.includes('unknown group');
+    if (!ignore) {
+      filtered[sid] = error;
+    }
+  });
+  return filtered;
+}
