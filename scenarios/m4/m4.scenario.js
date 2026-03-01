@@ -103,20 +103,17 @@ test('(5 pts) (scenario) use mem.reconf', (done) => {
   Finally, you will check if the items are in the right place.
   */
 
-  // Create a group with any number of nodes
   const mygroupGroup = {};
   mygroupGroup[id.getSID(n1)] = n1;
   mygroupGroup[id.getSID(n2)] = n2;
   mygroupGroup[id.getSID(n3)] = n3;
 
-  // Create a set of items and corresponding keys...
   const keysAndItems = [
     {key: 'a', item: {first: 'Josiah', last: 'Carberry'}},
     {key: 'b', item: {first: 'Ada', last: 'Lovelace'}},
     {key: 'e', item: {first: 'Grace', last: 'Hopper'}},
   ];
 
-  // Experiment with different hash functions...
   const config = {gid: 'mygroup', hash: id.naiveHash};
 
   distribution.local.groups.put(config, mygroupGroup, (e, v) => {
@@ -124,7 +121,6 @@ test('(5 pts) (scenario) use mem.reconf', (done) => {
       done(e);
       return;
     }
-    // Now, place each one of the items you made inside the group...
     distribution.mygroup.mem.put(keysAndItems[0].item, keysAndItems[0].key, (e, v) => {
       if (e) {
         done(e);
@@ -140,11 +136,9 @@ test('(5 pts) (scenario) use mem.reconf', (done) => {
             done(e);
             return;
           }
-        // We need to pass a copy of the group's
-        // nodes before the changes to reconf()
+
           const groupCopy = {...mygroupGroup};
 
-        // Remove a node from the group...
           const toRemove = n3;
         distribution.local.groups.rem('mygroup', id.getSID(toRemove), (e, v) => {
           if (e && Object.keys(e).length > 0) {
@@ -159,13 +153,11 @@ test('(5 pts) (scenario) use mem.reconf', (done) => {
                 done(e);
                 return;
               }
-            // We call `reconf()` on the distributed mem service. This will place the items in the remaining group nodes...
                 distribution.mygroup.mem.reconf(groupCopy, (e, v) => {
                   if (e) {
                     done(e);
                     return;
                   }
-              // Fill out the `checkPlacement` function (defined below) based on how you think the items will have been placed after the reconfiguration...
                   checkPlacement();
                 });
               });
@@ -175,8 +167,7 @@ test('(5 pts) (scenario) use mem.reconf', (done) => {
     });
   });
 
-  // This function will be called after we put items in nodes
-  // Send the right messages to the right nodes to check if the items are in the right place...
+
   const checkPlacement = (e, v) => {
     const messages = [
       [{key: keysAndItems[0].key, gid: 'mygroup'}],
@@ -184,7 +175,6 @@ test('(5 pts) (scenario) use mem.reconf', (done) => {
       [{key: keysAndItems[2].key, gid: 'mygroup'}],
     ];
 
-    // Based on where you think the items should be, send the messages to the right nodes...
     const remote = {node: n2, service: 'mem', method: 'get'};
     distribution.local.comm.send(messages[0], remote, (e, v) => {
       try {
@@ -195,7 +185,6 @@ test('(5 pts) (scenario) use mem.reconf', (done) => {
         return;
       }
 
-      // Write checks for the rest of the items...
       distribution.local.comm.send(messages[1], {node: n1, service: 'mem', method: 'get'}, (e, v) => {
         try {
           expect(e).toBeFalsy();
@@ -220,7 +209,6 @@ test('(5 pts) (scenario) use mem.reconf', (done) => {
 });
 
 beforeAll((done) => {
-  // First, stop the nodes if they are running
   const remote = {service: 'status', method: 'stop'};
 
   remote.node = n1;
@@ -244,9 +232,7 @@ beforeAll((done) => {
   });
 
   const startNodes = () => {
-    // Now, start the nodes listening node
     distribution.node.start(() => {
-      // Start the nodes
       distribution.local.status.spawn(n1, (e, v) => {
         distribution.local.status.spawn(n2, (e, v) => {
           distribution.local.status.spawn(n3, (e, v) => {

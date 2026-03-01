@@ -217,3 +217,23 @@ _Performance_ -- spawn: ~12.12 ops/sec throughput with ~79.13 ms avg latency; go
 > What is the point of having a gossip protocol? Why doesn't a node just send the message to _all_ other nodes in its group?
 
 Gossip lets the group spread information efficiently without overwhelming the network. If every node sent every update to every other node, message traffic would explode as the group grows, and a few slow nodes could stall everyone. Gossip instead forwards to a small random subset each round, which still reaches the whole group quickly but keeps bandwidth and load low, tolerates churn, and avoids central bottlenecks.
+
+# M4: Distributed Storage
+
+## Summary
+
+M4 adds both ephemeral and persistent distributed storage. The local `mem` service stores objects in an in-process table keyed by group id, while the local `store` service persists serialized objects under a per-node, per-group directory in `store/`. On top of that, the distributed `all.mem` and `all.store` services route each key to a single target node using the group hash function (`naiveHash`, `consistentHash`, or `rendezvousHash`), and support `put`, `get`, `del`, `get(null)` for key enumeration, and `reconf` for redistributing data after membership changes.
+
+The main implementation challenge was keeping placement logic and reconfiguration consistent across both memory and persistent storage. The solution in `distribution/all/mem.js` and `distribution/all/store.js` uses the same workflow in both cases: enumerate keys from the old membership, compute which keys change owners under the new membership, then move only those keys with a `get -> put -> del` sequence. Another practical challenge in the persistent store was avoiding filename/path issues, which is handled by hex-encoding path components and namespacing files by node SID.
+
+## Correctness & Performance Characterization
+
+Correctness was characterized with the M4 unit tests and scenarios already present in the repository. The codebase currently contains 89 M4-specific tests/scenarios across hashing, local/distributed `mem`, local/distributed `store`, key enumeration with `get(null)`, and reconfiguration after node removal (`test/m4.*`, `test/test-student/m4.student.test.js`, and `scenarios/m4/m4.scenario.js`). These tests check both normal behavior and failure cases such as missing keys, wrong-group lookups, hash-based placement, and relocation correctness after `reconf`.
+
+Performance was characterized with `scripts/m4-perf.js`. That script generates a configurable dataset, inserts all objects into a 3-node distributed persistent store, reads them all back by key, and reports per-operation latency plus aggregate throughput for both phases. In other words, the key M4 performance measurements are insertion cost (`store.put`) and retrieval cost (`store.get`) under the selected hash function and object size.
+
+## Key Feature
+
+`reconf` first identifies the keys that actually move because that keeps the operation targeted and avoids unnecessary data transfer. If it fetched every object up front, it would pay the cost of reading, serializing, transmitting, and rewriting objects whose placement does not change under the new membership. By comparing the old and new owner for each key first, the implementation only moves the minimal set of affected objects.
+
+This design also scales better for persistent storage. Listing keys is much cheaper than materializing every stored value, especially when values are large. The current implementation therefore separates the metadata step from the data-movement step: scan keys, compute ownership changes, then perform `get -> put -> del` only for keys whose hash target changes. That reduces I/O, network traffic, and temporary memory pressure during reconfiguration.

@@ -314,7 +314,6 @@ function emitChange(gid, previous, current, cause) {
     try {
       handler(event);
     } catch {
-      // Upcalls are best-effort and must not break group mutations.
     }
   });
 }
