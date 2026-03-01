@@ -345,7 +345,7 @@ function reconfigure(service, context, previousGroup, callback) {
                         [{gid: context.gid, key}],
                         {node: sourceNode, service, method: 'del'},
                         (deleteError) => {
-                          if (deleteError) {
+                          if (deleteError && !isMissingKeyError(deleteError)) {
                             doneMove(deleteError);
                             return;
                           }
@@ -412,4 +412,15 @@ function listKeysFromNodes(service, gid, nodes, callback) {
         },
     );
   });
+}
+
+/**
+ * Treat repeated reconfiguration as idempotent when a source key was already removed.
+ * @param {any} error
+ * @returns {boolean}
+ */
+function isMissingKeyError(error) {
+  return error instanceof Error &&
+    typeof error.message === 'string' &&
+    /key\s+".+"\s+not\s+found/i.test(error.message);
 }

@@ -114,7 +114,10 @@ function filterErrors(method, errors) {
     const ignore = method === 'rem' &&
       error instanceof Error &&
       typeof error.message === 'string' &&
-      error.message.includes('unknown group');
+      (
+        error.message.toLowerCase().includes('unknown group') ||
+        /group\s+.+\s+not\s+found/i.test(error.message)
+      );
     if (!ignore) {
       filtered[sid] = error;
     }

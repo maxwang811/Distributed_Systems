@@ -459,7 +459,11 @@ function reconfigure(service, context, previousGroup, callback) {
             {node: sourceNode, service, method: 'get'},
             (readError, value) => {
               if (readError) {
-                doneMove(readError);
+                if (isMissingKeyError(readError)) {
+                  confirmRelocated(destinationNode, context.gid, key, doneMove, moved);
+                } else {
+                  doneMove(readError);
+                }
                 return;
               }
               globalThis.distribution.local.comm.send(
@@ -474,7 +478,7 @@ function reconfigure(service, context, previousGroup, callback) {
                         [{gid: context.gid, key}],
                         {node: sourceNode, service, method: 'del'},
                         (deleteError) => {
-                          if (deleteError) {
+                          if (deleteError && !isMissingKeyError(deleteError)) {
                             doneMove(deleteError);
                             return;
                           }
@@ -541,4 +545,37 @@ function listKeysFromNodes(service, gid, nodes, callback) {
         },
     );
   });
+}
+
+/**
+ * @param {Node} destinationNode
+ * @param {string} gid
+ * @param {string} key
+ * @param {(error: Error | null) => void} doneMove
+ * @param {string[]} moved
+ */
+function confirmRelocated(destinationNode, gid, key, doneMove, moved) {
+  globalThis.distribution.local.comm.send(
+      [{gid, key}],
+      {node: destinationNode, service: 'store', method: 'get'},
+      (destinationError) => {
+        if (destinationError) {
+          doneMove(destinationError);
+          return;
+        }
+        moved.push(key);
+        doneMove(null);
+      },
+  );
+}
+
+/**
+ * Treat repeated reconfiguration as idempotent when a source key was already moved.
+ * @param {any} error
+ * @returns {boolean}
+ */
+function isMissingKeyError(error) {
+  return error instanceof Error &&
+    typeof error.message === 'string' &&
+    /key\s+".+"\s+not\s+found/i.test(error.message);
 }
