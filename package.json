@@ -18,7 +18,8 @@
   "scripts": {
     "test": "./scripts/test.sh",
     "lint": "./scripts/lint.sh",
-    "perf:m3": "node ./scripts/m3-perf.js"
+    "perf:m3": "node ./scripts/m3-perf.js",
+    "perf:m4": "node ./scripts/m4-perf.js"
   },
   "author": "Mohan Wang",
   "license": "ISC",
