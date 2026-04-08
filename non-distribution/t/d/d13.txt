@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Collection</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #fdf6e3;
+            color: #073642;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        h1 {
+            color: #2aa198;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            margin: 10px 0;
+        }
+
+        a {
+            color: #b58900;
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: #cb4b16;
+        }
+    </style>
+</head>
+<body>
+    <h1>My Book Collection</h1>
+    <ul>
+        <li><a href="static/book1.txt">The Picture of Dorian Gray by Oscar Wilde</a></li>
+        <li><a href="static/book2.txt">The Iliad by Homer</a></li>
+        <li><a href="static/book3.txt">The Adventures of Sherlock Holmes</a></li>
+        <!-- Add more books here -->
+    </ul>
+</body>
+</html>
