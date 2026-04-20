@@ -1,6 +1,8 @@
 require('../../distribution.js')();
 const distribution = globalThis.distribution;
 const id = distribution.util.id;
+const fs = require('fs');
+const path = require('path');
 
 const BASE_PORT = 7110;
 const NUM_WORKERS = 63;
@@ -22,6 +24,57 @@ const {startServer} = require('./query');
 const args = process.argv.slice(2);
 const serveOnly = args.includes('--serve');
 const indexOnly = args.includes('--index');
+
+const perf = {
+  startTime: Date.now(),
+  crawl: {},
+  index: {},
+  total: {},
+};
+
+function logPerf(msg) {
+  console.log(msg);
+  fs.appendFileSync(path.join(__dirname, 'performance.txt'), msg + '\n');
+}
+
+function writePerfReport() {
+  const lines = [
+    '=== Performance Report ===',
+    `Date: ${new Date().toISOString()}`,
+    '',
+  ];
+
+  if (perf.crawl.start) {
+    const crawlSec = (perf.crawl.end - perf.crawl.start) / 1000;
+    const crawlThroughput = perf.crawl.pages / crawlSec;
+    lines.push('-- Crawl --');
+    lines.push(`  Pages crawled:   ${perf.crawl.pages}`);
+    lines.push(`  Duration:        ${crawlSec.toFixed(2)}s`);
+    lines.push(`  Throughput:      ${crawlThroughput.toFixed(2)} pages/sec`);
+    lines.push(`  Avg latency:     ${(crawlSec / perf.crawl.pages * 1000).toFixed(2)}ms/page`);
+    lines.push('');
+  }
+
+  if (perf.index.start) {
+    const indexSec = (perf.index.end - perf.index.start) / 1000;
+    const indexThroughput = perf.index.pages / indexSec;
+    lines.push('-- Index --');
+    lines.push(`  Pages indexed:   ${perf.index.pages}`);
+    lines.push(`  Duration:        ${indexSec.toFixed(2)}s`);
+    lines.push(`  Throughput:      ${indexThroughput.toFixed(2)} pages/sec`);
+    lines.push(`  Avg latency:     ${(indexSec / perf.index.pages * 1000).toFixed(2)}ms/page`);
+    lines.push('');
+  }
+
+  const totalSec = (perf.total.end - perf.startTime) / 1000;
+  lines.push('-- End to End --');
+  lines.push(`  Total duration:  ${totalSec.toFixed(2)}s`);
+  lines.push('=========================');
+
+  const report = lines.join('\n');
+  console.log(report);
+  fs.writeFileSync(path.join(__dirname, 'performance.txt'), report + '\n');
+}
 
 function hasErr(err) {
   if (!err) return false;
@@ -115,37 +168,67 @@ function buildIndexInChunks(pageKeys, callback) {
   nextChunk();
 }
 
-function runIndex(callback) {
+function runIndex(pageKeys, callback) {
+  perf.index.start = Date.now();
+  perf.index.pages = pageKeys.length;
+  logPerf(`[perf] index start: ${new Date(perf.index.start).toISOString()}, pages: ${pageKeys.length}`);
+
+  buildIndexInChunks(pageKeys, (err) => {
+    perf.index.end = Date.now();
+    const indexSec = (perf.index.end - perf.index.start) / 1000;
+    logPerf(`[perf] index end: ${new Date(perf.index.end).toISOString()}`);
+    logPerf(`[perf] index duration: ${indexSec.toFixed(2)}s, throughput: ${(pageKeys.length / indexSec).toFixed(2)} pages/sec`);
+    callback(err);
+  });
+}
+
+function fetchAndRunIndex(callback) {
   distribution[GID].store.get({key: null, gid: GID}, (err, allKeys) => {
     if (hasErr(err)) return callback(err);
     const pageKeys = allKeys.filter((k) => k.startsWith('page:'));
     console.log(`[engine] found ${pageKeys.length} pages to index`);
-    buildIndexInChunks(pageKeys, callback);
+    runIndex(pageKeys, callback);
   });
 }
 
 bootNodes(() => {
   console.log('[engine] nodes up');
+  logPerf(`[perf] boot complete: ${new Date().toISOString()}`);
 
   if (serveOnly) {
     console.log('[engine] starting query server');
+    perf.total.end = Date.now();
+    writePerfReport();
     startServer(GID, 3000);
 
   } else if (indexOnly) {
     console.log('[engine] re-indexing');
-    runIndex((err) => {
+    fetchAndRunIndex((err) => {
       if (hasErr(err)) throw err;
+      perf.total.end = Date.now();
+      writePerfReport();
       console.log('[engine] index built, starting query server');
       startServer(GID, 3000);
     });
 
   } else {
     console.log('[engine] starting crawl...');
+    perf.crawl.start = Date.now();
+    logPerf(`[perf] crawl start: ${new Date(perf.crawl.start).toISOString()}`);
+
     crawl(GID, (err, count) => {
       if (hasErr(err)) throw err;
+      perf.crawl.end = Date.now();
+      perf.crawl.pages = count;
+      const crawlSec = (perf.crawl.end - perf.crawl.start) / 1000;
+      logPerf(`[perf] crawl end: ${new Date(perf.crawl.end).toISOString()}`);
+      logPerf(`[perf] crawl duration: ${crawlSec.toFixed(2)}s, pages: ${count}, throughput: ${(count / crawlSec).toFixed(2)} pages/sec`);
       console.log(`[engine] crawl done (${count} pages)`);
-      runIndex((err) => {
+
+      fetchAndRunIndex((err) => {
         if (hasErr(err)) throw err;
+        perf.total.end = Date.now();
+        writePerfReport();
         console.log('[engine] index built, starting query server');
         startServer(GID, 3000);
       });
