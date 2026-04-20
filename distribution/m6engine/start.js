@@ -32,7 +32,6 @@ function hasErr(err) {
 
 function spawnWithRetry(node, maxRetries, callback) {
   let attempts = 0;
-  const FALLBACK_PORT_START = BASE_PORT + NUM_WORKERS;
 
   function attempt(currentNode) {
     attempts++;
@@ -45,11 +44,10 @@ function spawnWithRetry(node, maxRetries, callback) {
         console.error(`[engine] Giving up on port ${currentNode.port} after ${attempts} attempts`);
         return callback(err);
       }
-      const nextPort = FALLBACK_PORT_START + attempts;
-      const nextNode = {ip: '127.0.0.1', port: nextPort};
-      console.warn(`[engine] Retrying on new port ${nextPort} (attempt ${attempts}/${maxRetries})`);
+      const nextNode = {ip: '127.0.0.1', port: currentNode.port + 1};
+      console.warn(`[engine] Retrying on next port ${nextNode.port} (attempt ${attempts}/${maxRetries})`);
       delete group[id.getSID(currentNode)];
-      setTimeout(() => attempt(nextNode), 500 * attempts);
+      attempt(nextNode);
     });
   }
 
