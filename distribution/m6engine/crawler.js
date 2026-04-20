@@ -31,7 +31,7 @@ const SEEDS = [
 
 const WIKI_BASE = 'https://en.wikipedia.org';
 const MAX_PAGES = 5000; // bump up later
-const CRAWL_DELAY_MS = 0;
+const CRAWL_DELAY_MS = 300;
 
 const STOP_WORDS = new Set([
   'the', 'a', 'an', 'is', 'in', 'of', 'and', 'to', 'for', 'on', 'at',
