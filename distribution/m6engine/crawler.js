@@ -34,12 +34,12 @@ const SEEDS = [
 ];
 
 const WIKI_BASE = 'https://en.wikipedia.org';
-const MAX_PAGES = Number.parseInt(process.env.CRAWL_MAX_PAGES || '5000', 10);
+const MAX_PAGES = Number.parseInt(process.env.CRAWL_MAX_PAGES || '100000', 10);
 const CRAWL_CONCURRENCY = Number.parseInt(process.env.CRAWL_CONCURRENCY || '63', 10);
 const DELETE_CONCURRENCY = Number.parseInt(process.env.CRAWL_DELETE_CONCURRENCY || '32', 10);
 const MAX_LINKS_PER_PAGE = Number.parseInt(process.env.CRAWL_MAX_LINKS_PER_PAGE || '40', 10);
 const REQUEST_TIMEOUT_MS = Number.parseInt(process.env.CRAWL_REQUEST_TIMEOUT_MS || '15000', 10);
-const BASE_REQUEST_INTERVAL_MS = Number.parseInt(process.env.CRAWL_REQUEST_INTERVAL_MS || '100', 10);
+const BASE_REQUEST_INTERVAL_MS = Number.parseInt(process.env.CRAWL_REQUEST_INTERVAL_MS || '300', 10);
 const MAX_REQUEST_INTERVAL_MS = Number.parseInt(process.env.CRAWL_MAX_REQUEST_INTERVAL_MS || '8000', 10);
 const MAX_FETCH_ATTEMPTS = Number.parseInt(process.env.CRAWL_MAX_FETCH_ATTEMPTS || '10', 10);
 const MIN_RETRY_DELAY_MS = Number.parseInt(process.env.CRAWL_MIN_RETRY_DELAY_MS || '5000', 10);
