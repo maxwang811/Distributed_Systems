@@ -17,13 +17,18 @@ for (let i = 0; i < NUM_WORKERS; i++) {
   group[id.getSID(node)] = node;
 }
 
-const {crawl, workerService} = require('./crawler');
+const {crawl} = require('./crawler');
 const {buildIndex} = require('./indexer');
 const {startServer} = require('./query');
 
 const args = process.argv.slice(2);
 const serveOnly = args.includes('--serve');
 const indexOnly = args.includes('--index');
+const resetCrawl = args.includes('--reset-crawl');
+
+if (resetCrawl && (serveOnly || indexOnly)) {
+  console.log('[engine] ignoring --reset-crawl because no crawl will run');
+}
 
 const perf = {
   startTime: Date.now(),
@@ -122,14 +127,7 @@ function bootNodes(callback) {
           console.log(`[engine] All ${nodes.length} workers processed.`);
           const config = {gid: GID};
           return distribution.local.groups.put(config, group, () => {
-            distribution[GID].groups.put(config, group, () => {
-              console.log('[engine] registering crawlerWorker service on all nodes...');
-              distribution[GID].routes.put(workerService, 'crawlerWorker', (routeErr) => {
-                if (hasErr(routeErr)) throw routeErr;
-                console.log('[engine] crawlerWorker service registered');
-                callback();
-              });
-            });
+            distribution[GID].groups.put(config, group, callback);
           });
         }
         return;
@@ -219,11 +217,11 @@ bootNodes(() => {
     });
 
   } else {
-    console.log('[engine] starting crawl...');
+    console.log(`[engine] starting crawl${resetCrawl ? ' from scratch' : ' from saved pages'}...`);
     perf.crawl.start = Date.now();
     logPerf(`[perf] crawl start: ${new Date(perf.crawl.start).toISOString()}`);
 
-    crawl(GID, (err, count) => {
+    crawl(GID, {reset: resetCrawl}, (err, count) => {
       if (hasErr(err)) throw err;
       perf.crawl.end = Date.now();
       perf.crawl.pages = count;
