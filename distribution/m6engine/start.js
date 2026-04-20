@@ -17,7 +17,7 @@ for (let i = 0; i < NUM_WORKERS; i++) {
   group[id.getSID(node)] = node;
 }
 
-const {crawl} = require('./crawler');
+const {crawl, workerService} = require('./crawler');
 const {buildIndex} = require('./indexer');
 const {startServer} = require('./query');
 
@@ -122,7 +122,14 @@ function bootNodes(callback) {
           console.log(`[engine] All ${nodes.length} workers processed.`);
           const config = {gid: GID};
           return distribution.local.groups.put(config, group, () => {
-            distribution[GID].groups.put(config, group, callback);
+            distribution[GID].groups.put(config, group, () => {
+              console.log('[engine] registering crawlerWorker service on all nodes...');
+              distribution[GID].routes.put(workerService, 'crawlerWorker', (routeErr) => {
+                if (hasErr(routeErr)) throw routeErr;
+                console.log('[engine] crawlerWorker service registered');
+                callback();
+              });
+            });
           });
         }
         return;
