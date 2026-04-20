@@ -48,6 +48,13 @@ function bootstrap(config) {
     distribution.local.routes.put(service, key, () => {});
   }
 
+  try {
+    const {workerService} = require('./distribution/m6engine/crawler.js');
+    distribution.local.routes.put(workerService, 'crawlerWorker', () => {});
+  } catch {
+    // The crawler is optional for earlier milestones.
+  }
+
   return distribution;
 }
 
