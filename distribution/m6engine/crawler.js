@@ -525,6 +525,11 @@ function crawlDistributed(gid, workers, existingPageKeys, callback) {
   schedule();
 }
 
-const workerService = {crawlOne};
+const workerService = {
+  crawlOne: function(path, callback) {
+    const {crawlOne} = require('./crawler');
+    return crawlOne(path, callback);
+  }
+};
 
 module.exports = {crawl, crawlOne, tokenize, workerService};
