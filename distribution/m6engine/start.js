@@ -2,15 +2,18 @@ require('../../distribution.js')();
 const distribution = globalThis.distribution;
 const id = distribution.util.id;
 
-const n1 = {ip: '127.0.0.1', port: 7110};
-const n2 = {ip: '127.0.0.1', port: 7111};
-const n3 = {ip: '127.0.0.1', port: 7112};
+const BASE_PORT = 7110;
+const NUM_WORKERS = 190;
 
 const GID = 'search';
 const group = {};
-group[id.getSID(n1)] = n1;
-group[id.getSID(n2)] = n2;
-group[id.getSID(n3)] = n3;
+
+const nodes = [];
+for (let i = 0; i < NUM_WORKERS; i++) {
+  const node = {ip: '127.0.0.1', port: BASE_PORT + i};
+  nodes.push(node);
+  group[id.getSID(node)] = node;
+}
 
 const {crawl} = require('./crawler');
 const {buildIndex} = require('./indexer');
@@ -30,23 +33,22 @@ function hasErr(err) {
 function bootNodes(callback) {
   distribution.node.start((err) => {
     if (hasErr(err)) throw err;
-    distribution.local.status.spawn(n1, () => {
-      distribution.local.status.spawn(n2, () => {
-        distribution.local.status.spawn(n3, () => {
-          const config = {gid: GID};
-          distribution.local.groups.put(config, group, () => {
-            distribution[GID].groups.put(config, group, () => {
-              callback();
-            });
-          });
+    let i = 0;
+    function spawnNext() {
+      if (i >= nodes.length) {
+        const config = {gid: GID};
+        return distribution.local.groups.put(config, group, () => {
+          distribution[GID].groups.put(config, group, callback);
         });
-      });
-    });
+      }
+      distribution.local.status.spawn(nodes[i++], spawnNext);
+    }
+    spawnNext();
   });
 }
 
 function buildIndexInChunks(pageKeys, callback) {
-  const CHUNK_SIZE = 20;
+  const CHUNK_SIZE = 5000;
   const chunks = [];
   for (let i = 0; i < pageKeys.length; i += CHUNK_SIZE) {
     chunks.push(pageKeys.slice(i, i + CHUNK_SIZE));
