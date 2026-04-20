@@ -58,6 +58,7 @@ function mr(config) {
     const mrId = id.getID(`${configuration}${Date.now()}`);
     const mrGid = `mr${mrId}`;
     const shuffleGroupId = `mr${mrId}shuffle`;
+    const orchestrator = globalThis.distribution.node.config;
 
     /*
       MapReduce steps:
@@ -77,106 +78,196 @@ function mr(config) {
     const mrService = {
       mapper: configuration.map,
       reducer: configuration.reduce,
-      map: function(
-          /** @type {string} */ mrGid,
-          /** @type {string} */ mrID,
-          /** @type {Callback} */ callback,
-      ) {
-        // Map should read the node's local keys under the mrGid gid and write to store under gid `${mrId}_map`.
-        // Expected output: array of objects with a single key per object.
-        distribution.local.store.get({key: null, gid: mrGid}, (err, keys) => {
-          if (err) {
-            return callback(err);
-          }
-          if (keys.length === 0) {
-            return callback(null, []);
-          }
+      keysToProcess: configuration.keys,
+      gid: context.gid,  
+      orchestrator: orchestrator,
 
-          let completed = 0;
-          const mapped = [];
-          keys.forEach((key) => {
-            distribution.local.store.get({key, gid: mrGid}, (_err, val) => {
-              completed++;
-              if (_err) {
-                return callback(_err);
-              }
+      map: function(mrGid, mrID, callback) {
+        globalThis.distribution.local.store.get({key: null, gid: this.gid}, (e, keys) => {
+          if (e) return callback(e, null);
+          
+          const gidkeys = keys.filter(k => this.keysToProcess.includes(k));
+          
+          if (gidkeys.length === 0) {
+            globalThis.distribution.local.comm.send(
+              [{results: [], node: globalThis.distribution.node.config}],
+              {node: this.orchestrator, service: mrGid, method: 'notify'},
+              (e, v) => callback(null, [])
+            );
+            return;
+          } 
+          
+          const res = [];
+          let storect = 0;
+          let i = 0;
 
-              const result = this.mapper(key, val); // result can be an object or array of objects
-              if (Array.isArray(result)) {
-                result.forEach((item) => mapped.push(item));
-              } else {
-                mapped.push(result);
-              }
-
-              if (completed === keys.length) {
-                distribution.local.store.put(
-                    mapped,
-                    `${mrID}_map`,
-                    (storeErr) => {return callback(storeErr, mapped)}
+          const stepMap = () => {
+            if (i >= gidkeys.length) {
+              if (res.length === 0) {
+                globalThis.distribution.local.comm.send(
+                    [{results: [], node: globalThis.distribution.node.config}],
+                    {node: this.orchestrator, service: mrGid, method: 'notify'},
+                    (e, v) => callback(null, [])
                 );
+                return;
               }
-            })
-          })
-        })
+
+              let j = 0;
+              const stepStore = () => {
+                if (j >= res.length) {
+                  globalThis.distribution.local.comm.send(
+                      [{results: res, node: globalThis.distribution.node.config}],
+                      {node: this.orchestrator, service: mrGid, method: 'notify'},
+                      (e, v) => callback(null, res)
+                  );
+                  return;
+                }
+
+                const pair = res[j];
+                const k = Object.keys(pair)[0];
+                const uniqidx = storect++; 
+                const nodeID = globalThis.distribution.util.id.getSID(globalThis.distribution.node.config);
+                const mapKey = `${mrID}_map_${nodeID}_${k}_${uniqidx}`;
+
+                globalThis.distribution.local.store.put(pair, {key: mapKey, gid: this.gid}, (e, v) => {
+                  if (e) return callback(e, null);
+                  j++;
+                  stepStore();
+                });
+              };
+              stepStore();
+              return;
+            }
+
+            const originalKey = gidkeys[i];
+            globalThis.distribution.local.store.get({key: originalKey, gid: this.gid}, (e, v) => { 
+              if (e) return callback(e, null);
+              
+              const pairs = this.mapper(originalKey, v);
+              pairs.forEach((pair) => res.push(pair));
+              
+              i++;
+              stepMap();
+            });
+          };
+          
+          stepMap();
+        });
       },
-      shuffle: function(
-          /** @type {string} */ gid,
-          /** @type {string} */ mrID,
-          /** @type {Callback} */ callback,
-      ) {
-        // Fetch the mapped values from the local store
-        // Shuffle groups values by key (via store.append).
-        distribution.local.store.get(`${mrID}_map`, (err, mappedData) => {
-          // mappedData is array of objects
-          if (err) {
-            return callback(err);
+
+      shuffle: function(gid, mrID, callback) {
+        const id = globalThis.distribution.util.id;
+        globalThis.distribution.local.store.get({key: null, gid: this.gid}, (e, keys) => {
+          if (e) return callback(e, null);
+          
+          const nodeID = id.getSID(globalThis.distribution.node.config);
+          const mappref = `${mrID}_map_${nodeID}_`;
+          const mapkeys = keys.filter((k) => k.includes(mappref));
+          
+          if (mapkeys.length === 0) {
+            globalThis.distribution.local.comm.send(
+              [{results: [], node: globalThis.distribution.node.config}],
+              {node: this.orchestrator, service: gid, method: 'notify'},
+              (e, v) => callback(null, [])
+            );
+            return;
           }
 
-          let completed = 0;
+          globalThis.distribution.local.groups.get(this.gid, (e, group) => {
+            if (e) return callback(e, null);
+            
+            const nodes = Object.values(group);
+            let i = 0;
 
-          mappedData.forEach((obj) => {
-
-            const [key] = Object.keys(obj);
-            distribution[gid].store.append(obj[key], key, () => {
-              completed++;
-
-              if (completed === mappedData.length) {
-                return callback(null, mappedData);
+            const stepShuffle = () => {
+              if (i >= mapkeys.length) {
+                globalThis.distribution.local.comm.send(
+                  [{results: [], node: globalThis.distribution.node.config}],
+                  {node: this.orchestrator, service: gid, method: 'notify'},
+                  (e, v) => callback(null, [])
+                );
+                return;
               }
-            })
-          })
-        })
+
+              const mapKey = mapkeys[i];
+              const storekey = mapKey.slice(mapKey.indexOf(mappref));
+              
+              globalThis.distribution.local.store.get({key: storekey, gid: this.gid}, (e, pair) => {
+                if (e) return callback(e, null);
+
+                const realkey = Object.keys(pair)[0];
+                const val = pair[realkey];
+                const nids = nodes.map((n) => id.getNID(n));
+                
+                const chosennid = id.naiveHash(id.getID(realkey), nids);
+                const dstconfig = nodes.find((n) => id.getNID(n) === chosennid);
+                const dstid = id.getSID(dstconfig);
+                const shufKey = `${mrID}_shuffle_${dstid}_${realkey}`;
+                
+                globalThis.distribution.local.comm.send(
+                  [val, {key: shufKey, gid: this.gid}],
+                  {node: dstconfig, service: 'store', method: 'append'},
+                  (e, v) => {
+                    if (e) return callback(e, null);
+                    i++;
+                    stepShuffle();
+                  }
+                );
+              });
+            };
+            stepShuffle();
+          });
+        });
       },
-      reduce: function(
-          /** @type {string} */ gid,
-          /** @type {string} */ mrID,
-          /** @type {Callback} */ callback,
-      ) {
-        // Fetch grouped values from local store, apply reducer, and return final output.
-        distribution.local.store.get({key: null, gid}, (err, keys) => {
-          if (err) {
-            return callback(err);
+
+      reduce: function(gid, mrID, callback) {
+        const nodeID = globalThis.distribution.util.id.getSID(globalThis.distribution.node.config);
+        const shufPrefix = `${mrID}_shuffle_${nodeID}_`;
+        
+        globalThis.distribution.local.store.get({key: null, gid: this.gid}, (e, keys) => {
+          if (e) return callback(e, null);
+          
+          const shufkeys = keys.filter((k) => k.includes(shufPrefix));
+          
+          if (shufkeys.length === 0) {
+            globalThis.distribution.local.comm.send(
+                [{results: [], node: globalThis.distribution.node.config}],
+                {node: this.orchestrator, service: gid, method: 'notify'},
+                (e, v) => callback(null, [])
+            );
+            return;
           }
+          
+          const redres = [];
+          let i = 0;
 
-          if (!Array.isArray(keys) || keys.length === 0) {
-            return callback(null, null);
-          }
+          const stepReduce = () => {
+            if (i >= shufkeys.length) {
+              globalThis.distribution.local.comm.send(
+                [{results: redres, node: globalThis.distribution.node.config}],
+                {node: this.orchestrator, service: gid, method: 'notify'},
+                (e, v) => callback(null, redres)
+              );
+              return;
+            }
 
-          let completed = 0;
-          const reduced = [];
-
-          keys.forEach((key) => {
-            distribution.local.store.get({key, gid}, (_, vals) => {
-              completed++;
-              const result = this.reducer(key, vals);
-              reduced.push(result);
-              if (completed === keys.length) {
-                return callback(null, reduced);
-              }
-            })
-          })
-        })
-      },
+            const shufKey = shufkeys[i];
+            const storekey = shufKey.slice(shufKey.indexOf(shufPrefix));
+            const origkey = storekey.slice(shufPrefix.length);
+            
+            globalThis.distribution.local.store.get({key: storekey, gid: this.gid}, (e, v) => { 
+              if (e) return callback(e, null);
+              
+              const res = this.reducer(origkey, v);
+              redres.push(res);
+              
+              i++;
+              stepReduce();
+            });
+          };
+          stepReduce();
+        });
+      }
     };
 
     function copyInputToMapGroup(keys, callback) {
@@ -213,7 +304,6 @@ function mr(config) {
       })
     }
 
-    // Register the mr service on all nodes in the group and execute in sequence: map, shuffle, reduce.
     distribution[context.gid].routes.put(mrService, `mr-${mrId}`, () => {
       distribution.local.groups.get(context.gid, (groupsErr, groupsRes) => {
         if (groupsErr) {
