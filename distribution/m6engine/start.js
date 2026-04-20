@@ -3,7 +3,7 @@ const distribution = globalThis.distribution;
 const id = distribution.util.id;
 
 const BASE_PORT = 7110;
-const NUM_WORKERS = 190;
+const NUM_WORKERS = 63;
 
 const GID = 'search';
 const group = {};
@@ -33,17 +33,38 @@ function hasErr(err) {
 function bootNodes(callback) {
   distribution.node.start((err) => {
     if (hasErr(err)) throw err;
-    let i = 0;
-    function spawnNext() {
-      if (i >= nodes.length) {
-        const config = {gid: GID};
-        return distribution.local.groups.put(config, group, () => {
-          distribution[GID].groups.put(config, group, callback);
+
+    let spawnedCount = 0;
+    let index = 0;
+    const CONCURRENCY = 10;
+
+    function launcher() {
+      if (index >= nodes.length) {
+        if (spawnedCount === nodes.length) {
+          console.log(`[engine] All ${nodes.length} workers processed.`);
+          const config = {gid: GID};
+          return distribution.local.groups.put(config, group, () => {
+            distribution[GID].groups.put(config, group, callback);
+          });
+        }
+        return;
+      }
+
+      while (index < nodes.length && (index - spawnedCount) < CONCURRENCY) {
+        const nodeToSpawn = nodes[index++];
+        
+        distribution.local.status.spawn(nodeToSpawn, (err) => {
+          spawnedCount++;
+          if (err) {
+            console.error(`[engine] Failed to spawn worker on port ${nodeToSpawn.port}:`, err.message);
+          }
+          launcher();
         });
       }
-      distribution.local.status.spawn(nodes[i++], spawnNext);
     }
-    spawnNext();
+
+    console.log(`[engine] Booting ${nodes.length} workers...`);
+    launcher();
   });
 }
 
