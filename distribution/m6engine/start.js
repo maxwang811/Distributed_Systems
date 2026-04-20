@@ -30,6 +30,32 @@ function hasErr(err) {
   return false;
 }
 
+function spawnWithRetry(node, maxRetries, callback) {
+  let attempts = 0;
+  const FALLBACK_PORT_START = BASE_PORT + NUM_WORKERS;
+
+  function attempt(currentNode) {
+    attempts++;
+    distribution.local.status.spawn(currentNode, (err) => {
+      if (!err) {
+        group[id.getSID(currentNode)] = currentNode;
+        return callback(null);
+      }
+      if (attempts >= maxRetries) {
+        console.error(`[engine] Giving up on port ${currentNode.port} after ${attempts} attempts`);
+        return callback(err);
+      }
+      const nextPort = FALLBACK_PORT_START + attempts;
+      const nextNode = {ip: '127.0.0.1', port: nextPort};
+      console.warn(`[engine] Retrying on new port ${nextPort} (attempt ${attempts}/${maxRetries})`);
+      delete group[id.getSID(currentNode)];
+      setTimeout(() => attempt(nextNode), 500 * attempts);
+    });
+  }
+
+  attempt(node);
+}
+
 function bootNodes(callback) {
   distribution.node.start((err) => {
     if (hasErr(err)) throw err;
@@ -37,6 +63,7 @@ function bootNodes(callback) {
     let spawnedCount = 0;
     let index = 0;
     const CONCURRENCY = 10;
+    const MAX_RETRIES = 3;
 
     function launcher() {
       if (index >= nodes.length) {
@@ -52,11 +79,12 @@ function bootNodes(callback) {
 
       while (index < nodes.length && (index - spawnedCount) < CONCURRENCY) {
         const nodeToSpawn = nodes[index++];
-        
-        distribution.local.status.spawn(nodeToSpawn, (err) => {
+
+        spawnWithRetry(nodeToSpawn, MAX_RETRIES, (err) => {
           spawnedCount++;
           if (err) {
-            console.error(`[engine] Failed to spawn worker on port ${nodeToSpawn.port}:`, err.message);
+            console.error(`[engine] Worker on port ${nodeToSpawn.port} failed permanently, continuing without it`);
+            delete group[id.getSID(nodeToSpawn)];
           }
           launcher();
         });
