@@ -153,7 +153,7 @@ function bootNodes(callback) {
 }
 
 function buildIndexInChunks(pageKeys, callback) {
-  const CHUNK_SIZE = 100000;
+  const CHUNK_SIZE = 5000;
   const chunks = [];
   for (let i = 0; i < pageKeys.length; i += CHUNK_SIZE) {
     chunks.push(pageKeys.slice(i, i + CHUNK_SIZE));
