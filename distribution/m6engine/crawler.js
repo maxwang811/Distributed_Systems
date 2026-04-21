@@ -34,7 +34,7 @@ const SEEDS = [
 ];
 
 const WIKI_BASE = 'https://en.wikipedia.org';
-const MAX_PAGES = Number.parseInt(process.env.CRAWL_MAX_PAGES || '100000', 10);
+const MAX_PAGES = Number.parseInt(process.env.CRAWL_MAX_PAGES || '5000', 10);
 const CRAWL_CONCURRENCY = Number.parseInt(process.env.CRAWL_CONCURRENCY || '63', 10);
 const DELETE_CONCURRENCY = Number.parseInt(process.env.CRAWL_DELETE_CONCURRENCY || '32', 10);
 const MAX_LINKS_PER_PAGE = Number.parseInt(process.env.CRAWL_MAX_LINKS_PER_PAGE || '40', 10);
