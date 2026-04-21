@@ -48,36 +48,37 @@ function makeReducer(N) {
 }
 
 function buildIndex(gid, pageKeys, callback) {
-  if (!pageKeys || pageKeys.length === 0) {
-    return callback(null);
-  }
+  if (!pageKeys || pageKeys.length === 0) return callback(null);
 
   const N = pageKeys.length;
   console.log(`[indexer] starting job over ${N} pages`);
 
   const reduceTermFreq = makeReducer(N);
+  const t0 = Date.now();
 
   distribution[gid].mr.exec({
     map: mapTermFreq,
     reduce: reduceTermFreq,
     keys: pageKeys,
   }, (err, results) => {
+    console.log(`[indexer] mr.exec done in ${((Date.now()-t0)/1000).toFixed(1)}s`);
     if (hasErr(err)) return callback(err);
 
-    console.log(`[indexer] job done, got ${results.length} terms`);
-
+    console.log(`[indexer] got ${results.length} terms, writing to store...`);
     if (results.length === 0) return callback(null);
 
+    const t1 = Date.now();
     let done = 0;
     for (const result of results) {
       const [term] = Object.keys(result);
       const scored = result[term];
-      const idxKey = 'idx:' + term;
-
-      distribution[gid].store.put(scored, idxKey, () => {
+      distribution[gid].store.put(scored, 'idx:' + term, () => {
         done++;
+        if (done % 1000 === 0) {
+          console.log(`[indexer] wrote ${done}/${results.length} terms (${((Date.now()-t1)/1000).toFixed(1)}s)`);
+        }
         if (done === results.length) {
-          console.log('[indexer] index written to store');
+          console.log(`[indexer] store write done in ${((Date.now()-t1)/1000).toFixed(1)}s`);
           return callback(null);
         }
       });

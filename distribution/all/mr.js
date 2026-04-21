@@ -338,13 +338,20 @@ function mr(config) {
 
               const mapMsg = [mrGid, mrId];
               const mapRemote = {service: `mr-${mrId}`, method: 'map'};
+              const t0 = Date.now();
               distribution[context.gid].comm.send(mapMsg, mapRemote, () => {
+                  console.log(`[mr] map done in ${((Date.now()-t0)/1000).toFixed(1)}s`);
+                  const t1 = Date.now();
                   const shuffleMsg = [shuffleGroupId, mrId];
                   const shuffleRemote = {service: `mr-${mrId}`, method: 'shuffle'};
+
                   distribution[context.gid].comm.send(shuffleMsg, shuffleRemote, () => {
+                    console.log(`[mr] shuffle done in ${((Date.now()-t1)/1000).toFixed(1)}s`);
+                    const t2 = Date.now();
                     const reduceMsg = [shuffleGroupId, mrId];
                     const reduceRemote = {service: `mr-${mrId}`, method: 'reduce'};
                     distribution[context.gid].comm.send(reduceMsg, reduceRemote, (_, reduceRes) => {
+                      console.log(`[mr] reduce done in ${((Date.now()-t2)/1000).toFixed(1)}s`);
                       let finalResults = [];
 
                       for (const val of Object.values(reduceRes)) {
