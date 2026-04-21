@@ -275,6 +275,8 @@ function mr(config) {
         return callback(null, null);
       }
 
+      console.log(`[mr] copy starting ${keys.length} keys...`);
+
       let completed = 0;
       let firstError = null;
 
@@ -283,6 +285,9 @@ function mr(config) {
           if (err) {
             firstError = firstError || err;
             completed++;
+            if (completed % 500 === 0) {
+              console.log(`[mr] copy progress ${completed}/${keys.length}`);
+            }
             if (completed === keys.length) {
               callback(firstError);
             }
