@@ -44,8 +44,14 @@ function store(config) {
       return;
     }
     let kid = '';
-    if (config.key.length !== 64) {
-      kid = util.id.getID(configuration);
+    // if (config.key.length !== 64) {
+    //   kid = util.id.getID(configuration);
+    // } else {
+    //   kid = config.key;
+    // }
+
+    if (!/^[a-f0-9]{64}$/i.test(config.key)) {
+      kid = util.id.getID(config.key);
     } else {
       kid = config.key;
     }
@@ -77,10 +83,17 @@ function store(config) {
   function put(state, configuration, callback) {
     const config = normalizeConfig(configuration);
     let kid = '';
+    // if (config.key === null) {
+    //   kid = util.id.getID(state);
+    // } else if (config.key.length !== 64) {
+    //   kid = util.id.getID(configuration);
+    // } else {
+    //   kid = config.key;
+    // }
     if (config.key === null) {
       kid = util.id.getID(state);
-    } else if (config.key.length !== 64) {
-      kid = util.id.getID(configuration);
+    } else if (!/^[a-f0-9]{64}$/i.test(config.key)) {
+      kid = util.id.getID(config.key);
     } else {
       kid = config.key;
     }
@@ -114,8 +127,8 @@ function store(config) {
     let kid = '';
     if (config.key === null) {
       kid = util.id.getID(state);
-    } else if (config.key.length !== 64) {
-      kid = util.id.getID(configuration);
+    } else if (!/^[a-f0-9]{64}$/i.test(config.key)) {
+      kid = util.id.getID(config.key);
     } else {
       kid = config.key;
     }
@@ -146,8 +159,8 @@ function store(config) {
   function del(configuration, callback) {
     const config = normalizeConfig(configuration);
     let kid = '';
-    if (config.key.length !== 64) {
-      kid = util.id.getID(configuration);
+    if (!/^[a-f0-9]{64}$/i.test(config.key)) {
+      kid = util.id.getID(config.key);
     } else {
       kid = config.key;
     }
